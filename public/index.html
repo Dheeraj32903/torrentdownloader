@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -192,7 +193,7 @@
             <span class="modal-icon">🎬</span>
             <div>
               <h3 id="player-title">Media Stream Player</h3>
-              <p class="modal-caption">Instant range-based streaming with subtitles</p>
+              <p class="modal-caption">Instant range-based streaming with subtitles & audio controls</p>
             </div>
           </div>
           <button class="modal-close" id="btn-close-player">&times;</button>
@@ -200,7 +201,7 @@
 
         <div class="modal-content player-content">
           <div class="video-wrapper">
-            <video id="player-video" controls playsinline controlslist="nodownload">
+            <video id="player-video" playsinline controls>
               Your browser does not support HTML5 video streaming.
             </video>
           </div>
@@ -214,12 +215,59 @@
             </div>
 
             <div class="player-button-group">
+              <button type="button" class="btn-subtle" id="player-remux-btn" title="Transcode audio to AAC if playing with no sound (e.g. AC3/EAC3/DTS)">
+                🔊 Fix Audio (AAC)
+              </button>
+              <button type="button" class="btn-subtle" id="player-copy-vlc-btn" title="Copy HTTP 206 stream link to paste into VLC, PotPlayer, MPV, or IINA">
+                📋 Copy VLC Stream Link
+              </button>
               <a href="#" target="_blank" class="btn-subtle" id="player-raw-stream-btn">
-                🔗 Open Raw Stream
+                🔗 Raw Stream
               </a>
               <a href="#" class="btn-primary btn-sm" id="player-direct-download-btn">
                 ⬇️ Direct Download
               </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pre-Download File Selection Modal -->
+    <div class="modal-backdrop hidden" id="modal-file-select">
+      <div class="modal-box file-select-modal">
+        <div class="modal-bar">
+          <div class="modal-heading">
+            <span class="modal-icon">🗂️</span>
+            <div>
+              <h3 id="select-modal-title">Select Files to Download</h3>
+              <p class="modal-caption" id="select-modal-subtitle">Pick files to save bandwidth and disk space</p>
+            </div>
+          </div>
+          <button class="modal-close" id="btn-close-file-select">&times;</button>
+        </div>
+
+        <div class="modal-content select-modal-content">
+          <div class="select-quick-filters">
+            <button type="button" class="btn-filter-pill" id="btn-select-all">Select All</button>
+            <button type="button" class="btn-filter-pill" id="btn-deselect-all">Deselect All</button>
+            <button type="button" class="btn-filter-pill" id="btn-select-video-only">🎬 Videos Only</button>
+            <button type="button" class="btn-filter-pill" id="btn-skip-samples-nfo">Skip Samples/NFO</button>
+          </div>
+
+          <div class="file-tree-container" id="file-select-tree">
+            <!-- Dynamic file rows with checkboxes -->
+          </div>
+
+          <div class="select-modal-footer">
+            <div class="select-disk-stats">
+              <span id="select-total-size">Selected: 0 B</span>
+              <span class="stats-sep">•</span>
+              <span id="select-free-disk">Free Space: Calculating...</span>
+            </div>
+            <div class="select-action-buttons">
+              <button type="button" class="btn-subtle" id="btn-cancel-file-select">Cancel</button>
+              <button type="button" class="btn-primary" id="btn-apply-file-select">💾 Save & Download Selected</button>
             </div>
           </div>
         </div>
@@ -231,6 +279,7 @@
 
   </div>
 
+  <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

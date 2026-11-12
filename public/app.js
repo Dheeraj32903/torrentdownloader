@@ -1,4 +1,5 @@
 // MagnetX - Direct Torrent & Magnet File Extractor
+// Advanced Cloud Download Engine with Targeted DOM Diffing, Sparklines & Media Player
 
 const DEMO_MAGNETS = {
   bigbuck: 'magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c&dn=Big+Buck+Bunny&tr=udp%3A%2F%2Fexplodie.org%3A6969&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.empire-js.us%3A1337&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=wss%3A%2F%2Ftracker.btorrent.xyz&tr=wss%3A%2F%2Ftracker.fastcast.nz&tr=wss%3A%2F%2Ftracker.openwebtorrent.com',
@@ -6,15 +7,47 @@ const DEMO_MAGNETS = {
   sintel: 'magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df6748d566095a10&dn=Sintel&tr=udp%3A%2F%2Fexplodie.org%3A6969&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.empire-js.us%3A1337&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337'
 };
 
+function formatBytes(bytes, decimals = 2) {
+  if (!+bytes) return '0 B';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
+
+function formatDuration(ms) {
+  if (!ms || ms <= 0 || !isFinite(ms)) return 'Done';
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+  return `${seconds}s`;
+}
+
 class MagnetXApp {
   constructor() {
     this.torrents = [];
     this.currentFilter = 'all';
     this.searchQuery = '';
     this.ws = null;
-    this.openAccordions = new Set(); // Tracks open file lists so ticks don't collapse them
+    this.openAccordions = new Set();
+    this.speedHistories = new Map(); // hash -> array of last 60 speeds
+    this.diskStats = { diskFree: 0, diskFreeFormatted: '—' };
+    
+    // File selection modal state
+    this.selectingTorrentHash = null;
+    this.tempSelectedIndices = new Set();
+
+    // Media player
+    this.plyr = null;
+    this.currentPlayingHash = null;
+    this.currentPlayingFile = null;
+    this.currentStreamUrl = null;
 
     this.initElements();
+    this.initPlyr();
     this.initEvents();
     this.initWebSocket();
     this.initTheme();
@@ -48,12 +81,46 @@ class MagnetXApp {
     this.playerTitle = document.getElementById('player-title');
     this.playerVideo = document.getElementById('player-video');
     this.subtitlesDropdown = document.getElementById('subtitles-dropdown');
+    this.playerCopyVlcBtn = document.getElementById('player-copy-vlc-btn');
+    this.playerRemuxBtn = document.getElementById('player-remux-btn');
     this.playerRawStreamBtn = document.getElementById('player-raw-stream-btn');
     this.playerDirectDownloadBtn = document.getElementById('player-direct-download-btn');
     this.btnClosePlayer = document.getElementById('btn-close-player');
 
+    // File selection modal
+    this.modalFileSelect = document.getElementById('modal-file-select');
+    this.selectModalTitle = document.getElementById('select-modal-title');
+    this.selectModalSubtitle = document.getElementById('select-modal-subtitle');
+    this.btnCloseFileSelect = document.getElementById('btn-close-file-select');
+    this.btnCancelFileSelect = document.getElementById('btn-cancel-file-select');
+    this.btnApplyFileSelect = document.getElementById('btn-apply-file-select');
+    this.fileSelectTree = document.getElementById('file-select-tree');
+    this.selectTotalSize = document.getElementById('select-total-size');
+    this.selectFreeDisk = document.getElementById('select-free-disk');
+    this.btnSelectAll = document.getElementById('btn-select-all');
+    this.btnDeselectAll = document.getElementById('btn-deselect-all');
+    this.btnSelectVideoOnly = document.getElementById('btn-select-video-only');
+    this.btnSkipSamplesNfo = document.getElementById('btn-skip-samples-nfo');
+
     // Toast stack
     this.toastStack = document.getElementById('toast-stack');
+  }
+
+  initPlyr() {
+    if (window.Plyr) {
+      try {
+        this.plyr = new Plyr(this.playerVideo, {
+          controls: [
+            'play-large', 'play', 'progress', 'current-time', 'duration',
+            'mute', 'volume', 'captions', 'settings', 'pip', 'fullscreen'
+          ],
+          settings: ['captions', 'quality', 'speed'],
+          speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] }
+        });
+      } catch (e) {
+        console.warn('Plyr initialization fallback:', e);
+      }
+    }
   }
 
   initEvents() {
@@ -85,7 +152,7 @@ class MagnetXApp {
         if (data.error) throw new Error(data.error);
 
         this.showToast(`Extracted link: ${data.torrent.name || 'Torrent'}`, 'success');
-        this.openAccordions.add(data.torrent.infoHash); // auto-expand newly added
+        this.openAccordions.add(data.torrent.infoHash);
         this.magnetInput.value = '';
       } catch (err) {
         this.showToast(err.message, 'error');
@@ -154,14 +221,14 @@ class MagnetXApp {
         document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         this.currentFilter = tab.getAttribute('data-filter');
-        this.renderTorrents();
+        this.fullRenderTorrents();
       });
     });
 
     // Search filter
     this.searchFilter.addEventListener('input', (e) => {
       this.searchQuery = e.target.value.toLowerCase().trim();
-      this.renderTorrents();
+      this.fullRenderTorrents();
     });
 
     // Player modal close
@@ -170,21 +237,44 @@ class MagnetXApp {
       if (e.target === this.modalPlayer) this.closePlayerModal();
     });
 
-    // Theme toggle
-    this.themeBtn.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme') || 'dark';
-      const next = current === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      localStorage.setItem('magnetx_theme', next);
-      this.themeIcon.textContent = next === 'dark' ? '🌙' : '☀️';
+    // Copy VLC Stream link button
+    this.playerCopyVlcBtn.addEventListener('click', () => {
+      if (this.currentStreamUrl) {
+        const vlcUrl = `${location.origin}${this.currentStreamUrl}`;
+        navigator.clipboard.writeText(vlcUrl).then(() => {
+          this.showToast('Copied direct HTTP 206 stream URL for VLC / PotPlayer / MPV!', 'success');
+        });
+      }
+    });
+
+    // Audio Remux AAC Transcode button
+    this.playerRemuxBtn.addEventListener('click', () => {
+      if (this.currentStreamUrl) {
+        const remuxUrl = this.currentStreamUrl.includes('?') 
+          ? `${this.currentStreamUrl}&remux=true` 
+          : `${this.currentStreamUrl}?remux=true`;
+        
+        this.showToast('Transcoding audio track to AAC for in-browser playback...', 'info');
+        if (this.plyr) {
+          this.plyr.source = {
+            type: 'video',
+            sources: [{ src: remuxUrl, type: 'video/mp4' }]
+          };
+          this.plyr.play();
+        } else {
+          this.playerVideo.src = remuxUrl;
+          this.playerVideo.load();
+          this.playerVideo.play().catch(() => {});
+        }
+      }
     });
 
     // Subtitle selection change
     this.subtitlesDropdown.addEventListener('change', () => {
+      const selected = this.subtitlesDropdown.value;
       const tracks = this.playerVideo.querySelectorAll('track');
       tracks.forEach(t => t.remove());
 
-      const selected = this.subtitlesDropdown.value;
       if (selected !== 'none') {
         const track = document.createElement('track');
         track.kind = 'subtitles';
@@ -195,6 +285,87 @@ class MagnetXApp {
         this.playerVideo.appendChild(track);
         this.showToast(`Subtitles active: ${track.label}`, 'info');
       }
+    });
+
+    // File selection modal controls
+    this.btnCloseFileSelect.addEventListener('click', () => this.closeFileSelectModal());
+    this.btnCancelFileSelect.addEventListener('click', () => this.closeFileSelectModal());
+    this.modalFileSelect.addEventListener('click', (e) => {
+      if (e.target === this.modalFileSelect) this.closeFileSelectModal();
+    });
+
+    this.btnSelectAll.addEventListener('click', () => {
+      const boxes = this.fileSelectTree.querySelectorAll('.file-tree-checkbox');
+      boxes.forEach(b => {
+        b.checked = true;
+        this.tempSelectedIndices.add(parseInt(b.getAttribute('data-index'), 10));
+      });
+      this.updateFileSelectModalStats();
+    });
+
+    this.btnDeselectAll.addEventListener('click', () => {
+      const boxes = this.fileSelectTree.querySelectorAll('.file-tree-checkbox');
+      boxes.forEach(b => {
+        b.checked = false;
+      });
+      this.tempSelectedIndices.clear();
+      this.updateFileSelectModalStats();
+    });
+
+    this.btnSelectVideoOnly.addEventListener('click', () => {
+      const boxes = this.fileSelectTree.querySelectorAll('.file-tree-checkbox');
+      this.tempSelectedIndices.clear();
+      boxes.forEach(b => {
+        const isVideo = b.getAttribute('data-isvideo') === 'true';
+        b.checked = isVideo;
+        if (isVideo) this.tempSelectedIndices.add(parseInt(b.getAttribute('data-index'), 10));
+      });
+      this.updateFileSelectModalStats();
+    });
+
+    this.btnSkipSamplesNfo.addEventListener('click', () => {
+      const boxes = this.fileSelectTree.querySelectorAll('.file-tree-checkbox');
+      boxes.forEach(b => {
+        const name = (b.getAttribute('data-name') || '').toLowerCase();
+        if (name.includes('sample') || name.endsWith('.nfo') || name.endsWith('.txt') || name.endsWith('.jpg')) {
+          b.checked = false;
+          this.tempSelectedIndices.delete(parseInt(b.getAttribute('data-index'), 10));
+        }
+      });
+      this.updateFileSelectModalStats();
+    });
+
+    this.btnApplyFileSelect.addEventListener('click', async () => {
+      if (!this.selectingTorrentHash) return;
+      const selected = Array.from(this.tempSelectedIndices);
+      if (selected.length === 0) {
+        this.showToast('Please select at least one file to download!', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/torrents/${this.selectingTorrentHash}/select`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ selectedIndices: selected })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        this.showToast(`Updated! Downloading ${selected.length} selected files.`, 'success');
+        this.closeFileSelectModal();
+      } catch (err) {
+        this.showToast(err.message, 'error');
+      }
+    });
+
+    // Theme toggle
+    this.themeBtn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('magnetx_theme', next);
+      this.themeIcon.textContent = next === 'dark' ? '🌙' : '☀️';
     });
   }
 
@@ -219,13 +390,16 @@ class MagnetXApp {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'init' || msg.type === 'tick') {
-          if (msg.data.torrents) {
-            this.torrents = msg.data.torrents;
-            this.renderTorrents();
+          if (msg.data.disk) {
+            this.diskStats = msg.data.disk;
           }
           if (msg.data.speeds) {
             this.navDownSpeed.textContent = msg.data.speeds.downloadFormatted;
             this.navUpSpeed.textContent = msg.data.speeds.uploadFormatted;
+          }
+          if (msg.data.torrents) {
+            this.torrents = msg.data.torrents;
+            this.syncTorrentsDOM(msg.data.torrents);
           }
           let activeCount = 0;
           for (const t of this.torrents) {
@@ -234,7 +408,7 @@ class MagnetXApp {
           this.activeTransfersCount.textContent = `${activeCount} Active`;
         } else if (msg.type === 'torrents_update') {
           this.torrents = msg.data;
-          this.renderTorrents();
+          this.syncTorrentsDOM(msg.data);
         }
       } catch (err) {
         console.error('WS parse error:', err);
@@ -276,8 +450,13 @@ class MagnetXApp {
     }
   }
 
-  renderTorrents() {
-    let filtered = this.torrents.filter(t => {
+  /**
+   * High-Performance Targeted DOM Diffing / Synchronization:
+   * Prevents layout thrashing, flickering, and accordion closures by mutating only
+   * changed properties in-place.
+   */
+  syncTorrentsDOM(torrents) {
+    let filtered = torrents.filter(t => {
       if (this.currentFilter === 'downloading') return t.status === 'downloading' || t.status === 'extracting';
       if (this.currentFilter === 'completed') return t.status === 'completed';
       return true;
@@ -294,13 +473,167 @@ class MagnetXApp {
       this.emptyStateBox.classList.remove('hidden');
       return;
     }
-
     this.emptyStateBox.classList.add('hidden');
 
-    const html = filtered.map(t => this.createTorrentBlockHTML(t)).join('');
-    this.torrentsContainer.innerHTML = html;
+    const incomingHashes = new Set(filtered.map(t => t.infoHash));
 
-    this.attachCardEventListeners();
+    // 1. Remove obsolete cards
+    const existingCards = this.torrentsContainer.querySelectorAll('.torrent-block');
+    existingCards.forEach(card => {
+      const hash = card.getAttribute('data-hash');
+      if (!incomingHashes.has(hash)) {
+        card.remove();
+        this.speedHistories.delete(hash);
+      }
+    });
+
+    // 2. Update existing cards or append new cards
+    filtered.forEach(t => {
+      const hash = t.infoHash;
+      let card = this.torrentsContainer.querySelector(`.torrent-block[data-hash="${hash}"]`);
+
+      if (!card) {
+        // Create new card and append
+        const temp = document.createElement('div');
+        temp.innerHTML = this.createTorrentBlockHTML(t);
+        card = temp.firstElementChild;
+        this.torrentsContainer.appendChild(card);
+        this.attachCardEventListeners(card);
+      } else {
+        // Targeted in-place mutation
+        this.updateCardInPlace(card, t);
+      }
+
+      // Update speed sparkline history (last 60 seconds)
+      this.recordSpeedAndDrawSparkline(card, t);
+    });
+  }
+
+  /**
+   * Mutates only dynamic elements of an existing card without rebuilding DOM
+   */
+  updateCardInPlace(card, t) {
+    const pct = Math.round((t.progress || 0) * 100);
+    const isCompleted = t.status === 'completed';
+    const isExtracting = t.isExtracting || t.status === 'extracting';
+    const isDownloading = t.status === 'downloading';
+
+    // Update name if changed
+    const nameEl = card.querySelector('.torrent-name');
+    if (nameEl && t.name && nameEl.textContent.trim() !== t.name) {
+      nameEl.textContent = t.name;
+      nameEl.title = t.name;
+    }
+
+    // Update progress bar
+    const progressThumb = card.querySelector('.progress-thumb');
+    if (progressThumb) {
+      progressThumb.style.width = `${pct}%`;
+    }
+
+    // Update progress summary text
+    const progressInfoText = card.querySelector('.progress-info-text');
+    if (progressInfoText) {
+      const downloadedFormatted = formatBytes(t.downloaded || 0);
+      const totalFormatted = formatBytes(t.total || 0);
+      progressInfoText.textContent = `${pct}% extracted (${downloadedFormatted} of ${totalFormatted})`;
+    }
+
+    // Update speeds & ETA
+    const speedInfo = card.querySelector('.progress-speeds');
+    if (speedInfo) {
+      if (isDownloading) {
+        const dlFormatted = formatBytes(t.downloadSpeed || 0) + '/s';
+        const etaFormatted = formatDuration(t.timeRemaining || 0);
+        speedInfo.innerHTML = `<span>↓ ${dlFormatted}</span><span>⏱️ ETA: ${etaFormatted}</span>`;
+      } else {
+        speedInfo.innerHTML = `<span>Status: ${isExtracting ? (t.extractStatusText || 'Extracting archives...') : 'Ready for download'}</span>`;
+      }
+    }
+
+    // Update peers count
+    const peersEl = card.querySelector('.torrent-peers-count');
+    if (peersEl) {
+      peersEl.textContent = `👥 ${t.numPeers || 0} peers`;
+      peersEl.style.display = isDownloading ? 'inline-flex' : 'none';
+    }
+
+    // Update status badge
+    const badgeEl = card.querySelector('.torrent-status-badge');
+    if (badgeEl) {
+      if (isExtracting) {
+        badgeEl.className = 'status-tag tag-extracting torrent-status-badge';
+        badgeEl.innerHTML = `📦 ${t.extractStatusText || 'Auto-Extracting RAR/ZIP...'}`;
+      } else if (isCompleted) {
+        badgeEl.className = 'status-tag tag-ready torrent-status-badge';
+        badgeEl.innerHTML = `✓ Ready`;
+      } else {
+        badgeEl.className = 'status-tag tag-downloading torrent-status-badge';
+        badgeEl.innerHTML = `⚡ Extracting (${pct}%)`;
+      }
+    }
+  }
+
+  /**
+   * Records 60s speed window and draws glowing bezier sparkline on HTML5 Canvas
+   */
+  recordSpeedAndDrawSparkline(card, t) {
+    const hash = t.infoHash;
+    if (!this.speedHistories.has(hash)) {
+      this.speedHistories.set(hash, new Array(60).fill(0));
+    }
+
+    const history = this.speedHistories.get(hash);
+    history.push(t.downloadSpeed || 0);
+    if (history.length > 60) history.shift();
+
+    const canvas = card.querySelector('.speed-sparkline');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    ctx.clearRect(0, 0, width, height);
+
+    const maxSpeed = Math.max(...history, 500 * 1024); // at least 500 KB scale
+    const step = width / (history.length - 1);
+
+    // Gradient fill under curve
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, 'rgba(6, 182, 212, 0.35)');
+    gradient.addColorStop(1, 'rgba(6, 182, 212, 0.0)');
+
+    ctx.beginPath();
+    ctx.moveTo(0, height);
+
+    for (let i = 0; i < history.length; i++) {
+      const x = i * step;
+      const y = height - (history[i] / maxSpeed) * (height - 4);
+      ctx.lineTo(x, y);
+    }
+
+    ctx.lineTo(width, height);
+    ctx.closePath();
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // Top stroke line
+    ctx.beginPath();
+    for (let i = 0; i < history.length; i++) {
+      const x = i * step;
+      const y = height - (history[i] / maxSpeed) * (height - 4);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#06b6d4';
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+  }
+
+  fullRenderTorrents() {
+    this.torrentsContainer.innerHTML = '';
+    this.syncTorrentsDOM(this.torrents);
   }
 
   createTorrentBlockHTML(t) {
@@ -308,30 +641,33 @@ class MagnetXApp {
     const isExtracting = t.isExtracting || t.status === 'extracting';
     const isCompleted = t.status === 'completed';
     const isDownloading = t.status === 'downloading';
-    const isOpen = this.openAccordions.has(t.infoHash) || isCompleted; // default open if ready or user opened
+    const isOpen = this.openAccordions.has(t.infoHash) || isCompleted;
 
     let statusTag = '';
     if (isExtracting) {
-      statusTag = `<span class="status-tag tag-extracting">📦 ${t.extractStatusText || 'Auto-Extracting RAR/ZIP...'}</span>`;
+      statusTag = `<span class="status-tag tag-extracting torrent-status-badge">📦 ${t.extractStatusText || 'Auto-Extracting RAR/ZIP...'}</span>`;
     } else if (isCompleted) {
-      statusTag = `<span class="status-tag tag-ready">✓ Ready</span>`;
+      statusTag = `<span class="status-tag tag-ready torrent-status-badge">✓ Ready</span>`;
       if (t.extracted) {
         statusTag += ` <span class="status-tag tag-extracted">⚡ Auto-Unpacked</span>`;
       }
     } else {
-      statusTag = `<span class="status-tag tag-downloading">⚡ Extracting (${pct}%)</span>`;
+      statusTag = `<span class="status-tag tag-downloading torrent-status-badge">⚡ Extracting (${pct}%)</span>`;
     }
 
     const files = t.files || [];
     const filesCount = files.length;
+    const totalFormatted = formatBytes(t.total || 0);
+    const downloadedFormatted = formatBytes(t.downloaded || 0);
 
     // Files rows HTML
     let filesRows = '';
     if (files.length > 0) {
-      filesRows = files.map(f => {
+      filesRows = files.map((f, idx) => {
         const isVideo = f.category === 'video' || /\.(mp4|mkv|webm|avi|mov)$/i.test(f.name);
         const isAudio = f.category === 'audio' || /\.(mp3|flac|wav|aac|ogg)$/i.test(f.name);
         const isArch = f.isArchive;
+        const isSelected = f.selected !== false;
 
         let icon = '📄';
         if (isVideo) icon = '🎬';
@@ -344,12 +680,13 @@ class MagnetXApp {
         const streamUrl = `/api/stream/${t.infoHash}?file=${encodeURIComponent(f.path)}`;
 
         return `
-          <div class="file-row">
+          <div class="file-row" style="${isSelected ? '' : 'opacity: 0.45;'}">
             <div class="file-col-name" title="${this.escapeHtml(f.displayName || f.name)}">
               <span>${icon}</span>
               <span class="name-text">${this.escapeHtml(f.displayName || f.name)}</span>
+              ${!isSelected ? '<span class="status-tag" style="font-size:10px;padding:1px 6px;">Deselected</span>' : ''}
             </div>
-            <div class="file-col-size">${f.sizeFormatted || '—'}</div>
+            <div class="file-col-size">${f.sizeFormatted || formatBytes(f.size || 0)}</div>
             <div class="file-col-actions">
               ${(isVideo || isAudio) ? `
                 <button class="btn-subtle btn-sm btn-stream-file" data-url="${streamUrl}" data-name="${this.escapeHtml(f.name)}" data-path="${this.escapeHtml(f.path)}" data-hash="${t.infoHash}" title="Stream video/audio directly in browser">
@@ -396,20 +733,35 @@ class MagnetXApp {
               </div>
               <div class="torrent-pill-row">
                 ${statusTag}
-                <span class="status-tag tag-info">💾 ${t.totalFormatted || '0 B'}</span>
+                <span class="status-tag tag-info">💾 ${totalFormatted}</span>
                 <span class="status-tag tag-info">📄 ${filesCount} file${filesCount === 1 ? '' : 's'}</span>
-                ${isDownloading ? `<span class="status-tag tag-info">👥 ${t.numPeers || 0} peers</span>` : ''}
+                <span class="status-tag tag-info torrent-peers-count" style="${isDownloading ? '' : 'display:none;'}">👥 ${t.numPeers || 0} peers</span>
               </div>
             </div>
           </div>
 
           <div class="torrent-actions-right">
+            <!-- Sparkline Speed History -->
+            <div class="sparkline-wrapper" title="60-second real-time speed curve">
+              <canvas class="speed-sparkline" width="140" height="28"></canvas>
+            </div>
+
+            <!-- File selection button -->
+            <button class="btn-subtle btn-sm btn-open-file-select" data-hash="${t.infoHash}" title="Choose which files to download or skip">
+              🗂️ Files
+            </button>
+
+            <!-- Aria2 Export -->
+            <a href="/api/torrents/${t.infoHash}/aria2" download class="btn-subtle btn-sm" title="Export Aria2/ADM batch control file (.aria2.txt)">
+              📥 Aria2
+            </a>
+
             ${isCompleted ? `
-              <a href="/api/download-zip/${t.infoHash}" class="btn-subtle btn-sm" title="Download all files in one single ZIP">
-                ⬇️ Download All (ZIP)
+              <a href="/api/download-zip/${t.infoHash}" class="btn-subtle btn-sm" title="Download all files in one single ZIP stream">
+                ⬇️ ZIP All
               </a>
               <button class="btn-subtle btn-sm btn-copy-all-links" data-hash="${t.infoHash}" title="Copy all file download links for IDM batch import">
-                📋 Copy All Links
+                📋 All Links
               </button>
               <button class="btn-subtle btn-sm btn-trigger-extract" data-hash="${t.infoHash}" title="Re-extract archives">
                 🔄 Re-Extract
@@ -430,13 +782,13 @@ class MagnetXApp {
             <div class="progress-thumb" style="width: ${pct}%"></div>
           </div>
           <div class="progress-info-row">
-            <span>${pct}% extracted (${t.downloadedFormatted || '0 B'} of ${t.totalFormatted || '0 B'})</span>
+            <span class="progress-info-text">${pct}% extracted (${downloadedFormatted} of ${totalFormatted})</span>
             <div class="progress-speeds">
               ${isDownloading ? `
-                <span>↓ ${t.downloadSpeedFormatted}</span>
-                <span>⏱️ ETA: ${t.timeRemainingFormatted}</span>
+                <span>↓ ${formatBytes(t.downloadSpeed || 0)}/s</span>
+                <span>⏱️ ETA: ${formatDuration(t.timeRemaining || 0)}</span>
               ` : `
-                <span>Status: ${isExtracting ? 'Extracting archives...' : 'Ready for download'}</span>
+                <span>Status: ${isExtracting ? (t.extractStatusText || 'Extracting archives...') : 'Ready for download'}</span>
               `}
             </div>
           </div>
@@ -461,9 +813,9 @@ class MagnetXApp {
     `;
   }
 
-  attachCardEventListeners() {
+  attachCardEventListeners(parent = document) {
     // Accordion toggle
-    document.querySelectorAll('.accordion-header').forEach(header => {
+    parent.querySelectorAll('.accordion-header').forEach(header => {
       header.addEventListener('click', () => {
         const hash = header.getAttribute('data-hash');
         const table = document.getElementById(`files-table-${hash}`);
@@ -481,8 +833,16 @@ class MagnetXApp {
       });
     });
 
+    // File selection modal trigger
+    parent.querySelectorAll('.btn-open-file-select').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const hash = btn.getAttribute('data-hash');
+        this.openFileSelectModal(hash);
+      });
+    });
+
     // Copy All Links (for IDM batch download)
-    document.querySelectorAll('.btn-copy-all-links').forEach(btn => {
+    parent.querySelectorAll('.btn-copy-all-links').forEach(btn => {
       btn.addEventListener('click', () => {
         const hash = btn.getAttribute('data-hash');
         const torrent = this.torrents.find(t => t.infoHash === hash);
@@ -499,7 +859,7 @@ class MagnetXApp {
     });
 
     // Copy single file link
-    document.querySelectorAll('.btn-copy-direct-link').forEach(btn => {
+    parent.querySelectorAll('.btn-copy-direct-link').forEach(btn => {
       btn.addEventListener('click', () => {
         const url = btn.getAttribute('data-url');
         navigator.clipboard.writeText(url).then(() => {
@@ -509,7 +869,7 @@ class MagnetXApp {
     });
 
     // Stream single file
-    document.querySelectorAll('.btn-stream-file').forEach(btn => {
+    parent.querySelectorAll('.btn-stream-file').forEach(btn => {
       btn.addEventListener('click', () => {
         const url = btn.getAttribute('data-url');
         const name = btn.getAttribute('data-name');
@@ -520,7 +880,7 @@ class MagnetXApp {
     });
 
     // Stream first streamable video in live torrent
-    document.querySelectorAll('.btn-stream-first').forEach(btn => {
+    parent.querySelectorAll('.btn-stream-first').forEach(btn => {
       btn.addEventListener('click', () => {
         const hash = btn.getAttribute('data-hash');
         const torrent = this.torrents.find(t => t.infoHash === hash);
@@ -537,7 +897,7 @@ class MagnetXApp {
     });
 
     // Re-extract archives button
-    document.querySelectorAll('.btn-trigger-extract').forEach(btn => {
+    parent.querySelectorAll('.btn-trigger-extract').forEach(btn => {
       btn.addEventListener('click', async () => {
         const hash = btn.getAttribute('data-hash');
         try {
@@ -552,7 +912,7 @@ class MagnetXApp {
     });
 
     // Extract single archive
-    document.querySelectorAll('.btn-extract-single').forEach(btn => {
+    parent.querySelectorAll('.btn-extract-single').forEach(btn => {
       btn.addEventListener('click', async () => {
         const hash = btn.getAttribute('data-hash');
         const relPath = btn.getAttribute('data-path');
@@ -573,7 +933,7 @@ class MagnetXApp {
     });
 
     // Delete torrent button
-    document.querySelectorAll('.btn-delete-torrent').forEach(btn => {
+    parent.querySelectorAll('.btn-delete-torrent').forEach(btn => {
       btn.addEventListener('click', async () => {
         const hash = btn.getAttribute('data-hash');
         const deleteDisk = confirm('Delete files from disk too? Click OK to permanently delete files, or Cancel to just remove from list.');
@@ -592,20 +952,131 @@ class MagnetXApp {
     });
   }
 
+  /**
+   * Pre-Download File Selection Modal
+   */
+  openFileSelectModal(hash) {
+    const torrent = this.torrents.find(t => t.infoHash === hash);
+    if (!torrent) return;
+
+    this.selectingTorrentHash = hash;
+    this.tempSelectedIndices.clear();
+
+    const files = torrent.files || [];
+    this.selectModalTitle.textContent = torrent.name || 'Select Files';
+    this.selectModalSubtitle.textContent = `Choose which files to allocate disk space and bandwidth for (${files.length} total files)`;
+
+    if (files.length === 0) {
+      this.fileSelectTree.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted);">Fetching file list from peers...</div>`;
+      this.modalFileSelect.classList.remove('hidden');
+      return;
+    }
+
+    // Populate checkboxes
+    const html = files.map((f, idx) => {
+      const isSelected = f.selected !== false;
+      if (isSelected) this.tempSelectedIndices.add(idx);
+
+      const isVideo = f.category === 'video' || /\.(mp4|mkv|webm|avi|mov)$/i.test(f.name);
+      let icon = '📄';
+      if (isVideo) icon = '🎬';
+      else if (f.category === 'audio') icon = '🎵';
+      else if (f.isArchive) icon = '📦';
+
+      return `
+        <div class="file-tree-item">
+          <div class="file-tree-left">
+            <input 
+              type="checkbox" 
+              class="file-tree-checkbox" 
+              id="file-chk-${idx}" 
+              data-index="${idx}" 
+              data-size="${f.size || 0}"
+              data-isvideo="${isVideo}"
+              data-name="${this.escapeHtml(f.name)}"
+              ${isSelected ? 'checked' : ''} 
+            />
+            <label for="file-chk-${idx}" class="file-tree-name">
+              <span>${icon}</span>
+              <span>${this.escapeHtml(f.name)}</span>
+            </label>
+          </div>
+          <div class="file-tree-right">
+            <span class="file-tree-size">${f.sizeFormatted || formatBytes(f.size || 0)}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    this.fileSelectTree.innerHTML = html;
+
+    // Attach checkbox change events
+    this.fileSelectTree.querySelectorAll('.file-tree-checkbox').forEach(box => {
+      box.addEventListener('change', (e) => {
+        const idx = parseInt(e.target.getAttribute('data-index'), 10);
+        if (e.target.checked) {
+          this.tempSelectedIndices.add(idx);
+        } else {
+          this.tempSelectedIndices.delete(idx);
+        }
+        this.updateFileSelectModalStats();
+      });
+    });
+
+    this.updateFileSelectModalStats();
+    this.modalFileSelect.classList.remove('hidden');
+  }
+
+  updateFileSelectModalStats() {
+    const torrent = this.torrents.find(t => t.infoHash === this.selectingTorrentHash);
+    if (!torrent || !torrent.files) return;
+
+    let selectedBytes = 0;
+    this.tempSelectedIndices.forEach(idx => {
+      const f = torrent.files[idx];
+      if (f && f.size) selectedBytes += f.size;
+    });
+
+    this.selectTotalSize.textContent = `Selected: ${this.tempSelectedIndices.size} files (${formatBytes(selectedBytes)})`;
+    this.selectFreeDisk.textContent = `Free Disk: ${this.diskStats.diskFreeFormatted || 'Unlimited'}`;
+  }
+
+  closeFileSelectModal() {
+    this.modalFileSelect.classList.add('hidden');
+    this.selectingTorrentHash = null;
+    this.tempSelectedIndices.clear();
+  }
+
+  /**
+   * Media Player with Plyr.io, Subtitle Auto-Attach & VLC Stream URL
+   */
   async openPlayerModal(streamUrl, title, hash, filePath) {
     this.playerTitle.textContent = title;
+    this.currentPlayingHash = hash;
+    this.currentPlayingFile = filePath;
+    this.currentStreamUrl = streamUrl;
+
     this.modalPlayer.classList.remove('hidden');
 
-    this.playerVideo.src = streamUrl;
-    this.playerVideo.load();
-    this.playerVideo.play().catch(() => {});
+    if (this.plyr) {
+      this.plyr.source = {
+        type: 'video',
+        title: title,
+        sources: [{ src: streamUrl, type: 'video/mp4' }]
+      };
+      this.plyr.play().catch(() => {});
+    } else {
+      this.playerVideo.src = streamUrl;
+      this.playerVideo.load();
+      this.playerVideo.play().catch(() => {});
+    }
 
     this.playerRawStreamBtn.href = streamUrl;
     this.playerDirectDownloadBtn.href = `/api/download/${hash}?file=${encodeURIComponent(filePath)}`;
 
     this.subtitlesDropdown.innerHTML = '<option value="none">Off</option>';
     
-    // Check for subtitles
+    // Auto-scan subtitles
     try {
       const res = await fetch(`/api/video-subtitles/${hash}?file=${encodeURIComponent(filePath)}`);
       const data = await res.json();
@@ -623,11 +1094,16 @@ class MagnetXApp {
   }
 
   closePlayerModal() {
-    this.playerVideo.pause();
-    this.playerVideo.src = '';
+    if (this.plyr) {
+      this.plyr.stop();
+    } else {
+      this.playerVideo.pause();
+      this.playerVideo.src = '';
+    }
     const tracks = this.playerVideo.querySelectorAll('track');
     tracks.forEach(t => t.remove());
     this.modalPlayer.classList.add('hidden');
+    this.currentStreamUrl = null;
   }
 
   showToast(message, type = 'info') {

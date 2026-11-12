@@ -6,14 +6,44 @@ import cors from 'cors';
 import multer from 'multer';
 import { WebSocketServer, WebSocket } from 'ws';
 import { TorrentManager } from './torrentManager.js';
-import { handleMediaStream, handleWebTorrentStream, srtToVtt, findSubtitles } from './streamHandler.js';
-import { handleDirectDownload, handleZipFolder, listDirectoryContents, getDiskStats, formatBytes, resolveFilePath } from './fileManager.js';
+import { handleMediaStream, handleWebTorrentStream, handleFfmpegRemuxStream, srtToVtt, findSubtitles } from './streamHandler.js';
+import { handleDirectDownload, streamFolderAsZip, generateAria2InputFile, listDirectoryContents, getDiskStats, formatBytes, resolveFilePath } from './fileManager.js';
 import { extractArchive } from './extractor.js';
 
 const PORT = process.env.PORT || 3000;
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
+
+// Optional Password Authentication Middleware
+const MAGNETX_PASSWORD = process.env.MAGNETX_PASSWORD;
+if (MAGNETX_PASSWORD) {
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      const customHeader = req.headers['x-magnetx-password'];
+      const queryToken = req.query.token;
+      const authHeader = req.headers['authorization'];
+
+      if (customHeader === MAGNETX_PASSWORD || queryToken === MAGNETX_PASSWORD) {
+        return next();
+      }
+      if (authHeader) {
+        if (authHeader.startsWith('Bearer ') && authHeader.slice(7).trim() === MAGNETX_PASSWORD) {
+          return next();
+        }
+        if (authHeader.startsWith('Basic ')) {
+          const creds = Buffer.from(authHeader.slice(6), 'base64').toString().split(':');
+          if (creds[1] === MAGNETX_PASSWORD || creds[0] === MAGNETX_PASSWORD) {
+            return next();
+          }
+        }
+      }
+      res.setHeader('WWW-Authenticate', 'Basic realm="MagnetX Protected"');
+      return res.status(401).json({ error: 'Unauthorized: Valid MAGNETX_PASSWORD required' });
+    }
+    next();
+  });
+}
 
 // Middleware
 app.use(cors());
@@ -223,6 +253,35 @@ app.get('/api/torrents/:hash/files', (req, res) => {
   res.json({ files: tree, isComplete: meta.status === 'completed', name: meta.name });
 });
 
+// Update selective file choices
+app.post('/api/torrents/:hash/select', (req, res) => {
+  const { hash } = req.params;
+  const { selectedIndices } = req.body;
+  if (!Array.isArray(selectedIndices)) {
+    return res.status(400).json({ error: 'selectedIndices must be an array of numbers' });
+  }
+  const meta = torrentManager.torrentsMap.get(hash);
+  if (!meta) return res.status(404).json({ error: 'Torrent not found' });
+
+  torrentManager.updateSelections(hash, selectedIndices);
+  res.json({ success: true, message: 'File selections updated', selectedCount: selectedIndices.length });
+});
+
+// Aria2 input file export (.txt)
+app.get('/api/torrents/:hash/aria2', (req, res) => {
+  const { hash } = req.params;
+  const meta = torrentManager.torrentsMap.get(hash);
+  if (!meta) return res.status(404).json({ error: 'Torrent not found' });
+
+  const hostUrl = `${req.protocol}://${req.get('host')}`;
+  const files = meta.files && meta.files.length > 0 ? meta.files : [{ name: meta.name, path: meta.name }];
+  const content = generateAria2InputFile(hostUrl, hash, files);
+
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(meta.name || hash)}.aria2.txt"`);
+  res.send(content);
+});
+
 // Stream Video / Audio with HTTP 206 Partial Content (Disk + Live WebTorrent Pieces)
 app.get('/api/stream/:hash', (req, res) => {
   const { hash } = req.params;
@@ -240,6 +299,9 @@ app.get('/api/stream/:hash', (req, res) => {
   // 1. Check if file is available on disk
   const targetFile = resolveFilePath(DOWNLOADS_DIR, meta, relPath);
   if (targetFile && fs.existsSync(targetFile) && fs.statSync(targetFile).size > 0) {
+    if (req.query.remux === 'true') {
+      return handleFfmpegRemuxStream(req, res, targetFile);
+    }
     return handleMediaStream(req, res, targetFile);
   }
 
@@ -336,11 +398,17 @@ app.get('/api/download-zip/:hash', (req, res) => {
 
   const torrentDir = path.join(DOWNLOADS_DIR, meta.name || hash);
 
-  if (!fs.existsSync(torrentDir)) {
-    return res.status(400).json({ error: 'Download has not finished or folder does not exist yet' });
+  if (fs.existsSync(torrentDir)) {
+    return streamFolderAsZip(torrentDir, meta.name || 'torrent', res);
   }
 
-  handleZipFolder(res, torrentDir, `${meta.name || 'torrent'}.zip`);
+  // Check if it's a single file saved directly in DOWNLOADS_DIR
+  const singleFilePath = resolveFilePath(DOWNLOADS_DIR, meta, meta.name);
+  if (singleFilePath && fs.existsSync(singleFilePath)) {
+    return streamFolderAsZip(singleFilePath, meta.name || 'torrent', res);
+  }
+
+  return res.status(400).json({ error: 'Download has not finished or folder does not exist yet' });
 });
 
 // System storage & statistics

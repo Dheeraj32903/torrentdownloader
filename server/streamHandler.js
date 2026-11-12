@@ -1,22 +1,60 @@
-import fs from 'fs';
-import path from 'path';
-import { createRequire } from 'module';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const mime = require('mime-types');
+
+let ffmpegChecked = false;
+let hasFfmpeg = false;
+
+export function checkFfmpeg() {
+  if (ffmpegChecked) return Promise.resolve(hasFfmpeg);
+  return new Promise((resolve) => {
+    const proc = spawn('ffmpeg', ['-version']);
+    proc.on('error', () => {
+      ffmpegChecked = true;
+      hasFfmpeg = false;
+      resolve(false);
+    });
+    proc.on('close', (code) => {
+      ffmpegChecked = true;
+      hasFfmpeg = code === 0;
+      resolve(hasFfmpeg);
+    });
+  });
+}
+
+/**
+ * Prioritizes first 10 pieces (headers/moov atom) and last 2 pieces (EBML cues)
+ * so that video playback in browsers and media players starts immediately!
+ */
+export function prioritizeStreamPieces(torrent, file) {
+  if (!torrent || !file || !torrent.pieceLength) return;
+
+  const pieceLength = torrent.pieceLength;
+  const startPiece = Math.floor(file.offset / pieceLength);
+  const endPiece = Math.floor((file.offset + file.length - 1) / pieceLength);
+
+  // Mark container header pieces as critical
+  const headerEnd = Math.min(startPiece + 10, endPiece);
+  if (typeof torrent.critical === 'function') {
+    torrent.critical(startPiece, headerEnd);
+    // Mark footer index/cues pieces as critical
+    torrent.critical(Math.max(startPiece, endPiece - 2), endPiece);
+    console.log(`[Stream] Critical pieces prioritized: ${startPiece}..${headerEnd} and ${Math.max(startPiece, endPiece - 2)}..${endPiece}`);
+  }
+}
 
 /**
  * Converts SRT subtitle text to WebVTT format
  */
 export function srtToVtt(srtContent) {
-  let vtt = 'WEBVTT\n\n' + srtContent
-    // Normalize newlines
+  return 'WEBVTT\n\n' + srtContent
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
-    // Replace comma in timestamps with period
     .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
-
-  return vtt;
 }
 
 /**
@@ -24,7 +62,7 @@ export function srtToVtt(srtContent) {
  */
 export function getMediaMimeType(filePath) {
   const lower = filePath.toLowerCase();
-  if (lower.endsWith('.mkv')) return 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"'; // Chromium compatible or x-matroska
+  if (lower.endsWith('.mkv')) return 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"';
   if (lower.endsWith('.mp4')) return 'video/mp4';
   if (lower.endsWith('.webm')) return 'video/webm';
   if (lower.endsWith('.ogg') || lower.endsWith('.ogv')) return 'video/ogg';
@@ -89,7 +127,11 @@ export function handleMediaStream(req, res, filePath) {
 /**
  * Streams directly from active WebTorrent swarm pieces before disk write
  */
-export function handleWebTorrentStream(req, res, file) {
+export function handleWebTorrentStream(req, res, file, torrent = null) {
+  if (torrent) {
+    prioritizeStreamPieces(torrent, file);
+  }
+
   const fileSize = file.length;
   const range = req.headers.range;
   const contentType = getMediaMimeType(file.name);
@@ -132,6 +174,39 @@ export function handleWebTorrentStream(req, res, file) {
 }
 
 /**
+ * Optional FFmpeg transcode pipeline for .mkv with AC3/DTS audio to AAC
+ * Copies video stream (-c:v copy) with zero CPU overhead, only transcoding audio to AAC.
+ */
+export async function handleFfmpegRemuxStream(req, res, inputPath) {
+  const ffmpegOk = await checkFfmpeg();
+  if (!ffmpegOk) {
+    // Fallback to standard range stream
+    return handleMediaStream(req, res, inputPath);
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'video/mp4',
+    'Cache-Control': 'no-cache'
+  });
+
+  const proc = spawn('ffmpeg', [
+    '-re',
+    '-i', inputPath,
+    '-c:v', 'copy',
+    '-c:a', 'aac',
+    '-b:a', '192k',
+    '-f', 'mp4',
+    '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+    'pipe:1'
+  ]);
+
+  proc.stdout.pipe(res);
+
+  proc.stderr.on('data', () => {}); // silence verbose logs
+  res.on('close', () => proc.kill('SIGKILL'));
+}
+
+/**
  * Finds subtitle files (.srt, .vtt) in the same directory or 'Subs' folder
  */
 export function findSubtitles(videoFilePath, baseDir) {
@@ -164,4 +239,3 @@ export function findSubtitles(videoFilePath, baseDir) {
   scanDir(videoDir);
   return subtitles;
 }
-

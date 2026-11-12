@@ -4,6 +4,7 @@ package-lock.json
 
 # Downloaded files & torrent states
 downloads/
+data/
 *.mkv
 *.mp4
 *.avi
@@ -23,3 +24,4 @@ yarn-error.log*
 # OS files
 .DS_Store
 Thumbs.db
+

@@ -1,7 +1,7 @@
 FROM node:22-alpine
 
-# Install bsdtar and unrar for archive extraction
-RUN apk add --no-cache libarchive-tools unrar
+# Universal native binary toolchain for low-RAM archive streaming & audio transcoding
+RUN apk add --no-cache 7zip ffmpeg libarchive-tools unrar
 
 WORKDIR /app
 

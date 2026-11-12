@@ -1,8 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import { spawn } from 'child_process';
-import AdmZip from 'adm-zip';
-import { createExtractorFromFile } from 'node-unrar-js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { Worker } from 'node:worker_threads';
 
 const ARCHIVE_EXTENSIONS = [
   '.zip',
@@ -37,11 +35,6 @@ export function isArchive(filename) {
 
 /**
  * Determines whether this file is the primary file of an archive set.
- * For example:
- * - `.part1.rar` or `.part01.rar` -> true
- * - `.part2.rar` or `.part02.rar` -> false (secondary)
- * - `.r00` or `.r01` -> false (secondary to .rar)
- * - standalone `.rar`, `.zip`, `.tar.gz` -> true
  */
 export function isPrimaryArchive(filename) {
   const lower = filename.toLowerCase();
@@ -63,97 +56,43 @@ export function isPrimaryArchive(filename) {
     return false;
   }
 
-  // Standard archives
   return !!isArchive(filename);
 }
 
 /**
- * Extracts a ZIP archive
+ * Offloads archive extraction to a background Worker Thread.
+ * The Node.js main event loop never freezes, and WebSockets/HTTP remain 100% responsive!
  */
-async function extractZip(archivePath, targetDir) {
-  try {
-    const zip = new AdmZip(archivePath);
-    zip.extractAllTo(targetDir, true);
-    return { success: true, method: 'adm-zip' };
-  } catch (err) {
-    // Fallback to bsdtar
-    return extractWithTar(archivePath, targetDir);
-  }
-}
-
-/**
- * Extracts a RAR archive using node-unrar-js with tar fallback
- */
-async function extractRar(archivePath, targetDir) {
-  try {
-    const extractor = await createExtractorFromFile({
-      filepath: archivePath,
-      targetPath: targetDir
-    });
-    
-    const { files } = extractor.extract();
-    let extractedCount = 0;
-    // Iterate generator to perform disk writes
-    for (const file of files) {
-      if (file && file.fileHeader) {
-        extractedCount++;
-      }
-    }
-    return { success: true, method: 'node-unrar-js', filesCount: extractedCount };
-  } catch (err) {
-    console.warn(`[Extractor] node-unrar-js error for ${archivePath}, trying tar fallback:`, err.message);
-    return extractWithTar(archivePath, targetDir);
-  }
-}
-
-/**
- * Extracts using bsdtar (built-in Windows 10/11 & Linux/macOS)
- */
-function extractWithTar(archivePath, targetDir) {
+export function extractArchiveAsync(archivePath, destDir, onProgress) {
   return new Promise((resolve, reject) => {
-    fs.mkdirSync(targetDir, { recursive: true });
-    const proc = spawn('tar', ['-xf', archivePath, '-C', targetDir]);
+    if (!fs.existsSync(archivePath)) {
+      return reject(new Error(`Archive file does not exist: ${archivePath}`));
+    }
 
-    let stderr = '';
-    proc.stderr.on('data', (data) => {
-      stderr += data.toString();
+    const workerUrl = new URL('./extractorWorker.js', import.meta.url);
+    const worker = new Worker(workerUrl, {
+      workerData: { archivePath, destDir }
     });
 
-    proc.on('close', (code) => {
-      if (code === 0) {
-        resolve({ success: true, method: 'tar' });
-      } else {
-        reject(new Error(`Extraction failed with exit code ${code}: ${stderr || 'Unknown error'}`));
+    worker.on('message', (msg) => {
+      if (msg.status === 'extracting' && onProgress) {
+        onProgress(msg.log);
+      }
+      if (msg.status === 'done') {
+        resolve(msg);
+      }
+      if (msg.status === 'error') {
+        reject(new Error(`Extraction failed: ${msg.error}`));
       }
     });
 
-    proc.on('error', (err) => {
-      reject(err);
+    worker.on('error', reject);
+    worker.on('exit', (code) => {
+      if (code !== 0) {
+        // worker stopped
+      }
     });
   });
-}
-
-/**
- * Extracts any supported archive into a destination directory
- */
-export async function extractArchive(archivePath, targetDir) {
-  if (!fs.existsSync(archivePath)) {
-    throw new Error(`File does not exist: ${archivePath}`);
-  }
-
-  fs.mkdirSync(targetDir, { recursive: true });
-  const lower = archivePath.toLowerCase();
-
-  if (lower.endsWith('.zip')) {
-    return await extractZip(archivePath, targetDir);
-  }
-
-  if (lower.endsWith('.rar') || /\.part\d+\.rar$/i.test(lower)) {
-    return await extractRar(archivePath, targetDir);
-  }
-
-  // For tar, tar.gz, tgz, 7z, bz2, xz, etc.
-  return await extractWithTar(archivePath, targetDir);
 }
 
 /**
@@ -176,6 +115,7 @@ export function getAllFiles(dirPath, arrayOfFiles = []) {
 
 /**
  * Automatically scans a downloaded torrent folder and extracts all primary archives
+ * using Worker Threads.
  */
 export async function autoExtractTorrent(torrentPath, onProgress) {
   if (!fs.existsSync(torrentPath)) {
@@ -199,7 +139,6 @@ export async function autoExtractTorrent(torrentPath, onProgress) {
   for (const archiveFile of primaryArchives) {
     const dirName = path.dirname(archiveFile);
     const baseName = path.basename(archiveFile);
-    // Create an extracted subfolder matching the archive's name without extension
     const cleanName = baseName.replace(/\.(part\d+\.rar|tar\.[a-z0-9]+|[a-z0-9]+)$/i, '');
     const outDir = path.join(dirName, `${cleanName}_extracted`);
 
@@ -208,16 +147,20 @@ export async function autoExtractTorrent(torrentPath, onProgress) {
     }
 
     try {
-      console.log(`[Extractor] Extracting ${baseName} -> ${outDir}...`);
-      await extractArchive(archiveFile, outDir);
+      console.log(`[ExtractorWorker] Offloading ${baseName} to Worker Thread -> ${outDir}...`);
+      const result = await extractArchiveAsync(archiveFile, outDir, (log) => {
+        if (onProgress) onProgress({ status: 'extracting', file: baseName, log });
+      });
+
       extractedArchives.push({
         archive: baseName,
         archivePath: archiveFile,
-        extractedTo: outDir
+        extractedTo: outDir,
+        count: result.count || 0
       });
-      console.log(`[Extractor] Successfully extracted ${baseName}!`);
+      console.log(`[ExtractorWorker] Extraction finished for ${baseName}!`);
     } catch (err) {
-      console.error(`[Extractor] Failed to extract ${baseName}:`, err.message);
+      console.error(`[ExtractorWorker] Extraction failed for ${baseName}:`, err.message);
       errors.push({ archive: baseName, error: err.message });
     }
   }
@@ -228,4 +171,3 @@ export async function autoExtractTorrent(torrentPath, onProgress) {
     errors
   };
 }
-
