@@ -95,6 +95,8 @@ export function extractArchiveAsync(archivePath, destDir, onProgress) {
   });
 }
 
+export const extractArchive = extractArchiveAsync;
+
 /**
  * Recursively scans a directory for files
  */
