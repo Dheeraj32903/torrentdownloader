@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Downloaded files & torrent states
+downloads/
+*.mkv
+*.mp4
+*.avi
+*.iso
+*.zip
+*.rar
+*.7z
+*.tar.gz
+
+# Environment & logs
+.env
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db

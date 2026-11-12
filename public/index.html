@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MagnetX — Direct Torrent & Magnet File Extractor</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236366f1%22 stroke-width=%222.5%22><polygon points=%2213 2 3 14 12 14 11 22 21 10 12 10 13 2%22/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app" class="app-layout">
+
+    <!-- Top Navigation Bar -->
+    <header class="top-nav">
+      <div class="nav-container">
+        <div class="brand">
+          <div class="brand-logo">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+          </div>
+          <div class="brand-info">
+            <div class="brand-title">Magnet<span>X</span></div>
+            <div class="brand-subtitle">Direct Magnet & Torrent Extractor</div>
+          </div>
+        </div>
+
+        <div class="nav-metrics">
+          <!-- Live Network Speed -->
+          <div class="metric-pill" title="Live Extraction & Transfer Speed">
+            <div class="speed-down">
+              <span class="arrow">↓</span>
+              <span id="nav-down-speed">0 B/s</span>
+            </div>
+            <div class="speed-divider"></div>
+            <div class="speed-up">
+              <span class="arrow">↑</span>
+              <span id="nav-up-speed">0 B/s</span>
+            </div>
+          </div>
+
+          <!-- Total Extracted / Active Count -->
+          <div class="metric-pill counter-pill" title="Active Transfers">
+            <span class="pill-dot"></span>
+            <span id="active-transfers-count">0 Active</span>
+          </div>
+
+          <!-- Connection Status -->
+          <div class="status-indicator" id="ws-indicator" title="Engine Status">
+            <span class="status-glow"></span>
+            <span class="status-text">Connected</span>
+          </div>
+
+          <!-- Theme Toggle -->
+          <button class="theme-toggle-btn" id="theme-btn" title="Toggle Dark/Light Mode">
+            <span id="theme-icon">🌙</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="main-body">
+
+      <!-- Extraction Input Card -->
+      <section class="extractor-hero">
+        <div class="hero-card">
+          <div class="hero-header">
+            <div class="hero-text">
+              <h1>Extract Files from Magnet or Torrent</h1>
+              <p>Paste any magnet link to instantly extract file contents, auto-unpack archives (RAR/ZIP/7Z), stream media, or generate direct IDM download links.</p>
+            </div>
+          </div>
+
+          <!-- Ingestion Tabs -->
+          <div class="input-tabs">
+            <button class="tab-button active" data-tab="magnet">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+              </svg>
+              Magnet Link
+            </button>
+            <button class="tab-button" data-tab="torrent">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              Upload .torrent File
+            </button>
+          </div>
+
+          <!-- Magnet Form -->
+          <div class="tab-content active" id="tab-magnet">
+            <form id="magnet-form" class="magnet-input-row">
+              <div class="input-container">
+                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+                <input 
+                  type="text" 
+                  id="magnet-input" 
+                  placeholder="Paste magnet link (magnet:?xt=urn:btih:...) to extract files..." 
+                  required 
+                  autocomplete="off" 
+                  spellcheck="false"
+                />
+                <button type="button" class="btn-paste-clip" id="btn-paste" title="Paste magnet from clipboard">
+                  📋 Paste
+                </button>
+              </div>
+              <button type="submit" class="btn-primary" id="btn-extract-magnet">
+                <span class="btn-label">⚡ Extract Files</span>
+                <span class="loading-spinner hidden" id="spinner-extract"></span>
+              </button>
+            </form>
+          </div>
+
+          <!-- Torrent File Upload Form -->
+          <div class="tab-content" id="tab-torrent">
+            <div class="upload-dropzone" id="torrent-dropzone">
+              <input type="file" id="file-torrent-picker" accept=".torrent" style="display:none;" />
+              <div class="dropzone-inner">
+                <div class="dropzone-emoji">📂</div>
+                <div class="dropzone-title">Click to select or drop a <code>.torrent</code> file here</div>
+                <div class="dropzone-desc">Instant metadata extraction & archive unzipping</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Samples -->
+          <div class="samples-bar">
+            <span class="samples-title">Quick Demo Links:</span>
+            <button class="sample-tag" data-sample="bigbuck">🎬 Big Buck Bunny (Video)</button>
+            <button class="sample-tag" data-sample="ubuntu">💿 Ubuntu Minimal ISO</button>
+            <button class="sample-tag" data-sample="sintel">🎥 Sintel 4K Animation</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Extracted Torrents Section -->
+      <section class="torrents-section">
+        <div class="section-toolbar">
+          <div class="section-heading">
+            <h2>Extracted Links & Torrents</h2>
+            <span class="counter-badge" id="torrents-total-badge">0 items</span>
+          </div>
+
+          <div class="toolbar-controls">
+            <!-- Search Filter -->
+            <div class="filter-search-box">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="search-filter" placeholder="Filter by name..." />
+            </div>
+
+            <!-- Filter Tabs -->
+            <div class="status-filters">
+              <button class="filter-tab active" data-filter="all">All</button>
+              <button class="filter-tab" data-filter="downloading">Extracting</button>
+              <button class="filter-tab" data-filter="completed">Ready</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Torrent List -->
+        <div class="torrents-container" id="torrents-container">
+          <!-- Populated by app.js -->
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state-box hidden" id="empty-state">
+          <div class="empty-art">⚡</div>
+          <h3>No Extracted Torrents Yet</h3>
+          <p>Paste any magnet link or drop a .torrent file above to immediately inspect its files, unpack archives, and download directly.</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Cloud Media Player Modal -->
+    <div class="modal-backdrop hidden" id="modal-player">
+      <div class="modal-box player-modal">
+        <div class="modal-bar">
+          <div class="modal-heading">
+            <span class="modal-icon">🎬</span>
+            <div>
+              <h3 id="player-title">Media Stream Player</h3>
+              <p class="modal-caption">Instant range-based streaming with subtitles</p>
+            </div>
+          </div>
+          <button class="modal-close" id="btn-close-player">&times;</button>
+        </div>
+
+        <div class="modal-content player-content">
+          <div class="video-wrapper">
+            <video id="player-video" controls playsinline controlslist="nodownload">
+              Your browser does not support HTML5 video streaming.
+            </video>
+          </div>
+
+          <div class="player-bar-bottom">
+            <div class="subtitle-control">
+              <label for="subtitles-dropdown">💬 Subtitles:</label>
+              <select id="subtitles-dropdown" class="select-field">
+                <option value="none">Off</option>
+              </select>
+            </div>
+
+            <div class="player-button-group">
+              <a href="#" target="_blank" class="btn-subtle" id="player-raw-stream-btn">
+                🔗 Open Raw Stream
+              </a>
+              <a href="#" class="btn-primary btn-sm" id="player-direct-download-btn">
+                ⬇️ Direct Download
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-stack" id="toast-stack"></div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "name": "seedrx-cloud-downloader",
+  "version": "1.0.0",
+  "description": "Next-generation cloud torrent & magnet downloader with auto-archive extraction, high-speed direct downloads, and in-browser media streaming.",
+  "main": "server/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js"
+  },
+  "keywords": [
+    "torrent",
+    "magnet",
+    "seedr",
+    "cloud-downloader",
+    "streaming",
+    "debrid",
+    "extractor"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "adm-zip": "^0.6.1",
+    "archiver": "^8.0.0",
+    "cors": "^2.8.6",
+    "express": "^5.3.0",
+    "mime-types": "^3.0.2",
+    "multer": "^2.5.0",
+    "node-unrar-js": "^2.0.2",
+    "webtorrent": "^3.0.21",
+    "ws": "^8.22.2"
+  }
+}

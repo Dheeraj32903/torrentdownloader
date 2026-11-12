@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  seedrx:
+    build: .
+    container_name: seedrx-cloud
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./downloads:/app/downloads
+    environment:
+      - PORT=3000
+
