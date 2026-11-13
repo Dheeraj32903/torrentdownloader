@@ -29,9 +29,17 @@ export class TorrentManager {
   initClient() {
     this.client = new WebTorrent({
       maxConns: 200,
-      dht: true,
+      dht: {
+        bootstrap: [
+          'router.bittorrent.com:6881',
+          'router.utorrent.com:6881',
+          'dht.transmissionbt.com:6881',
+          'dht.libtorrent.org:25401',
+          'router.silotis.us:6881'
+        ]
+      },
       tracker: true,
-      utp: false, // Stable TCP on Windows to prevent UTP_ECONNRESET
+      utp: true,
       webSeeds: true
     });
 

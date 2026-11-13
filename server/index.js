@@ -442,7 +442,7 @@ app.get('/api/video-subtitles/:hash', (req, res) => {
   res.json({ subtitles: subs });
 });
 
-// Direct Download File
+// Direct Download File (Dual-Mode: Maximum Gigabit speed from disk if complete, or Live Swarm streaming)
 app.get('/api/download/:hash', (req, res) => {
   const { hash } = req.params;
   const relPath = req.query.file;
@@ -451,22 +451,87 @@ app.get('/api/download/:hash', (req, res) => {
   const meta = torrentManager.torrentsMap.get(hash);
   if (!meta) return res.status(404).json({ error: 'Torrent not found' });
 
-  // Prevent downloading incomplete 0% pre-allocated sparse files
   const activeTorrent = torrentManager.getActiveTorrent(hash);
   const isComplete = meta.status === 'completed' || (activeTorrent && activeTorrent.done);
-  if (!isComplete) {
-    const pct = Math.round((meta.progress || 0) * 100);
-    return res.status(409).json({
-      error: `Download is still in progress (${pct}% completed). Please wait until it reaches 100% to save the complete file, or use 'Stream' to watch live!`
+
+  // 1. If completed or extracted on disk: Serve directly from disk with instant gigabit speed & Range resume
+  if (isComplete) {
+    const targetFile = resolveFilePath(DOWNLOADS_DIR, meta, relPath);
+    if (targetFile && fs.existsSync(targetFile)) {
+      return handleDirectDownload(req, res, targetFile, path.basename(targetFile));
+    }
+  }
+
+  // 2. If actively downloading in swarm: Stream download directly from WebTorrent pieces
+  if (activeTorrent && activeTorrent.files && activeTorrent.files.length > 0) {
+    const norm = relPath.replace(/\\/g, '/');
+    const file = activeTorrent.files.find(f => 
+      f.path.replace(/\\/g, '/') === norm ||
+      f.name === path.basename(norm) ||
+      norm.endsWith(f.name)
+    );
+
+    if (file) {
+      const fileName = file.name || path.basename(relPath);
+      const safeFilename = encodeURIComponent(fileName).replace(/['()]/g, escape).replace(/\*/g, '%2A');
+      const fileSize = file.length;
+      const range = req.headers.range;
+
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+        if (isNaN(start) || start >= fileSize) {
+          res.status(416).set('Content-Range', `bytes */${fileSize}`);
+          return res.end();
+        }
+
+        const chunkSize = (end - start) + 1;
+        res.writeHead(206, {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunkSize,
+          'Content-Type': 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${fileName}"; filename*=UTF-8''${safeFilename}`,
+          'Cache-Control': 'no-cache'
+        });
+
+        const stream = file.createReadStream({ start, end });
+        stream.pipe(res);
+        res.on('close', () => { try { stream.destroy(); } catch {} });
+        return;
+      } else {
+        res.writeHead(200, {
+          'Content-Length': fileSize,
+          'Accept-Ranges': 'bytes',
+          'Content-Type': 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${fileName}"; filename*=UTF-8''${safeFilename}`,
+          'Cache-Control': 'no-cache'
+        });
+
+        const stream = file.createReadStream();
+        stream.pipe(res);
+        res.on('close', () => { try { stream.destroy(); } catch {} });
+        return;
+      }
+    }
+  }
+
+  // 3. Fallback: Check if file exists on disk
+  const targetFile = resolveFilePath(DOWNLOADS_DIR, meta, relPath);
+  if (targetFile && fs.existsSync(targetFile)) {
+    return handleDirectDownload(req, res, targetFile, path.basename(targetFile));
+  }
+
+  // 4. If metadata is still resolving
+  if (activeTorrent && (!activeTorrent.files || activeTorrent.files.length === 0)) {
+    return res.status(503).json({
+      error: 'Connecting to swarm peers to fetch metadata... Please wait a few seconds and try downloading again.'
     });
   }
 
-  const targetFile = resolveFilePath(DOWNLOADS_DIR, meta, relPath);
-  if (!targetFile || !fs.existsSync(targetFile)) {
-    return res.status(404).json({ error: 'File not found on disk' });
-  }
-
-  handleDirectDownload(req, res, targetFile, path.basename(targetFile));
+  return res.status(404).json({ error: 'File not found on disk or in active stream' });
 });
 
 // Download entire Torrent/Folder as ZIP (On-the-fly streaming)

@@ -622,15 +622,18 @@ class MagnetXApp {
               ` : ''}
 
               ${isCompleted ? `
-                <a href="${downloadUrl}" class="btn-subtle btn-sm" style="color:var(--green);font-weight:700;" title="Direct download to your computer">
+                <a href="${downloadUrl}" class="btn-subtle btn-sm" style="color:var(--green);font-weight:700;" title="Direct high-speed download to your computer">
                   ⬇️ Download
                 </a>
                 <button class="btn-subtle btn-sm btn-copy-direct-link" data-url="${location.origin}${downloadUrl}" title="Copy direct link for IDM/Download Manager">
                   📋 IDM
                 </button>
               ` : `
-                <button class="btn-subtle btn-sm" style="opacity:0.6;cursor:help;" onclick="alert('Downloading pieces from peers: ${pct}% completed. Please wait until 100% to save file to disk, or click Stream in VLC to watch live!')" title="Download unlocks at 100% (currently ${pct}%)">
-                  ⏳ ${pct}%
+                <a href="${downloadUrl}" class="btn-subtle btn-sm" style="color:var(--cyan);font-weight:600;" title="Live stream download straight to your computer">
+                  ⬇️ Download (${pct}%)
+                </a>
+                <button class="btn-subtle btn-sm btn-copy-direct-link" data-url="${location.origin}${downloadUrl}" title="Copy direct link for IDM/Download Manager">
+                  📋 IDM
                 </button>
               `}
             </div>
