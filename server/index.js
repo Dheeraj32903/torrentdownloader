@@ -10,6 +10,19 @@ import { handleMediaStream, handleWebTorrentStream, handleFfmpegRemuxStream, srt
 import { handleDirectDownload, streamFolderAsZip, generateAria2InputFile, listDirectoryContents, getDiskStats, formatBytes, resolveFilePath } from './fileManager.js';
 import { extractArchive } from './extractor.js';
 
+// Global error handlers to prevent premature client disconnects (VLC seeking / browser aborts) from crashing the server
+process.on('uncaughtException', (err) => {
+  if (err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.code === 'EPIPE' || err?.message?.includes('closed')) {
+    return; // Safe to ignore client socket termination
+  }
+  console.error('[Process] Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  if (reason?.code === 'PREMATURE_CLOSE' || reason?.code === 'ECONNRESET') return;
+  console.warn('[Process] Unhandled Rejection:', reason);
+});
+
 const PORT = process.env.PORT || 3000;
 const app = express();
 const server = http.createServer(app);
@@ -497,7 +510,13 @@ app.get('/api/download/:hash', (req, res) => {
           'Cache-Control': 'no-cache'
         });
 
+        res.on('error', () => {});
+
         const stream = file.createReadStream({ start, end });
+        stream.on('error', (err) => {
+          if (err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.message?.includes('closed')) return;
+          console.warn('[Download] Swarm stream error:', err.message);
+        });
         stream.pipe(res);
         res.on('close', () => { try { stream.destroy(); } catch {} });
         return;
@@ -510,7 +529,13 @@ app.get('/api/download/:hash', (req, res) => {
           'Cache-Control': 'no-cache'
         });
 
+        res.on('error', () => {});
+
         const stream = file.createReadStream();
+        stream.on('error', (err) => {
+          if (err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.message?.includes('closed')) return;
+          console.warn('[Download] Swarm stream error:', err.message);
+        });
         stream.pipe(res);
         res.on('close', () => { try { stream.destroy(); } catch {} });
         return;

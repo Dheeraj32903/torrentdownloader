@@ -170,6 +170,10 @@ export function handleMediaStream(req, res, filePath) {
     });
 
     const fileStream = fs.createReadStream(filePath, { start: 0, end });
+    fileStream.on('error', (err) => {
+      if (err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.code === 'EPIPE') return;
+      console.warn('[Stream] Disk stream error:', err.message);
+    });
     fileStream.pipe(res);
 
     res.on('close', () => {
@@ -189,6 +193,9 @@ export function handleWebTorrentStream(req, res, file, torrent = null) {
   const fileSize = file.length;
   const range = req.headers.range;
   const contentType = getMediaMimeType(file.name);
+
+  // Guard response object against aborted sockets
+  res.on('error', () => {});
 
   if (req.method === 'HEAD') {
     res.writeHead(200, {
@@ -234,22 +241,27 @@ export function handleWebTorrentStream(req, res, file, torrent = null) {
     });
 
     const stream = file.createReadStream({ start, end });
+    
+    // Attach error handler BEFORE pipe to catch premature close safely
+    stream.on('error', (err) => {
+      if (err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.code === 'EPIPE' || err?.message?.includes('closed')) {
+        return; // Normal client seek or connection termination
+      }
+      console.warn('[Stream] WebTorrent stream error:', err.message);
+      try {
+        if (!res.headersSent) res.status(500).end();
+        else res.end();
+      } catch {}
+    });
+
     stream.pipe(res);
 
-    // CRUCIAL: Abort stream immediately if client seeks or closes connection
+    // Abort stream cleanly when client seeks or closes socket
     res.on('close', () => {
       try {
         if (stream && typeof stream.destroy === 'function') {
           stream.destroy();
         }
-      } catch {}
-    });
-
-    stream.on('error', (err) => {
-      console.warn('[Stream] WebTorrent stream error:', err.message);
-      try {
-        if (!res.headersSent) res.status(500).end();
-        else res.end();
       } catch {}
     });
   } else {
@@ -268,6 +280,14 @@ export function handleWebTorrentStream(req, res, file, torrent = null) {
     });
 
     const stream = file.createReadStream({ start: 0, end });
+    
+    stream.on('error', (err) => {
+      if (err?.code === 'PREMULTURE_CLOSE' || err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.message?.includes('closed')) {
+        return;
+      }
+      console.warn('[Stream] WebTorrent initial stream error:', err.message);
+    });
+
     stream.pipe(res);
 
     res.on('close', () => {
@@ -276,10 +296,6 @@ export function handleWebTorrentStream(req, res, file, torrent = null) {
           stream.destroy();
         }
       } catch {}
-    });
-
-    stream.on('error', (err) => {
-      console.warn('[Stream] WebTorrent initial stream error:', err.message);
     });
   }
 }
