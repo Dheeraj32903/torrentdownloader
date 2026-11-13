@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Tv, Download, Copy, Trash2, ChevronDown, ChevronUp, 
   Users, ArrowDownCircle, ArrowUpCircle, Clock, CheckCircle2, 
-  Layers
+  Layers, Zap, Loader2
 } from 'lucide-react';
 import SpeedSparkline from './SpeedSparkline.jsx';
 import FileTree from './FileTree.jsx';
@@ -18,6 +18,9 @@ export default function TorrentCard({
   const [expanded, setExpanded] = useState(false);
   const [files, setFiles] = useState(torrent.files || []);
   const [loadingFiles, setLoadingFiles] = useState(false);
+  const [turboActive, setTurboActive] = useState(false);
+  const [turboProgress, setTurboProgress] = useState(0);
+  const [turboSpeed, setTurboSpeed] = useState('');
 
   const pct = Math.min(Math.round((torrent.progress || 0) * 100), 100);
   const isCompleted = torrent.status === 'completed' || pct === 100;
@@ -50,9 +53,74 @@ export default function TorrentCard({
     onShowToast(`Copied IDM / Direct Download link!`, 'success');
   };
 
-  const directDownloadUrl = `/api/download/${torrent.infoHash}?file=${encodeURIComponent(
-    (files && files[0]) ? (files[0].path || files[0].name) : torrent.name
-  )}`;
+  const primaryFile = (files && files[0]) ? (files[0].path || files[0].name) : torrent.name;
+  const directDownloadUrl = `/api/download/${torrent.infoHash}?file=${encodeURIComponent(primaryFile)}`;
+
+  // In-Browser Multi-Threaded Turbo Downloader (4 Parallel Streams, No IDM needed!)
+  const startTurboDownload = async () => {
+    if (turboActive) return;
+    setTurboActive(true);
+    setTurboProgress(0);
+    setTurboSpeed('');
+    onShowToast('Starting 4-stream Turbo Download in browser...', 'info');
+
+    const totalBytes = torrent.total || (files && files[0] && files[0].size) || 0;
+    const NUM_THREADS = 4;
+    const chunkSize = Math.ceil(totalBytes / NUM_THREADS);
+    let downloadedSoFar = 0;
+    const startTime = Date.now();
+
+    try {
+      const promises = Array.from({ length: NUM_THREADS }).map(async (_, i) => {
+        const start = i * chunkSize;
+        const end = Math.min((i + 1) * chunkSize - 1, totalBytes - 1);
+        
+        const response = await fetch(directDownloadUrl, {
+          headers: { Range: `bytes=${start}-${end}` }
+        });
+        
+        if (!response.body) throw new Error('ReadableStream not supported');
+        const reader = response.body.getReader();
+        const threadChunks = [];
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          threadChunks.push(value);
+          downloadedSoFar += value.length;
+          
+          const currentPct = Math.min(Math.round((downloadedSoFar / totalBytes) * 100), 100);
+          setTurboProgress(currentPct);
+          
+          const elapsed = (Date.now() - startTime) / 1000;
+          if (elapsed > 0.5) {
+            const spd = downloadedSoFar / elapsed;
+            setTurboSpeed(formatSpeed(spd));
+          }
+        }
+        
+        return { index: i, blob: new Blob(threadChunks) };
+      });
+
+      const results = await Promise.all(promises);
+      results.sort((a, b) => a.index - b.index);
+      
+      const mergedBlob = new Blob(results.map(r => r.blob), { type: 'application/octet-stream' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(mergedBlob);
+      a.download = primaryFile;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      
+      onShowToast(`Turbo Download completed: ${primaryFile}`, 'success');
+    } catch (err) {
+      console.warn('Turbo download fallback to direct:', err);
+      window.location.href = directDownloadUrl;
+    } finally {
+      setTurboActive(false);
+    }
+  };
 
   return (
     <div 
@@ -159,6 +227,25 @@ export default function TorrentCard({
         </div>
       </div>
 
+      {/* Turbo Download Active Banner */}
+      {turboActive && (
+        <div className="mb-4 bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 space-y-2 animate-in fade-in">
+          <div className="flex items-center justify-between text-xs font-semibold text-indigo-900">
+            <span className="flex items-center gap-1.5">
+              <Zap className="w-4 h-4 text-indigo-600 fill-current animate-pulse" />
+              <span>Multi-Threaded Turbo Download Active (4 Parallel Streams)</span>
+            </span>
+            <span className="font-mono text-indigo-600">{turboSpeed || 'Pipelining...'} • {turboProgress}%</span>
+          </div>
+          <div className="w-full h-2 bg-indigo-100 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-indigo-600 to-violet-600 transition-all duration-200"
+              style={{ width: `${turboProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Actions Row */}
       <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-100">
         <div className="flex items-center gap-2 flex-wrap">
@@ -173,12 +260,33 @@ export default function TorrentCard({
             <span>Stream in VLC</span>
           </button>
 
-          {/* Dual-Mode Direct Download */}
+          {/* ⚡ In-Browser Turbo Download (Multi-Stream) */}
+          <button
+            type="button"
+            onClick={startTurboDownload}
+            disabled={turboActive}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-indigo-500/25 transition-all disabled:opacity-50"
+            title="High-speed multi-threaded download (4 parallel connections directly in your browser)"
+          >
+            {turboActive ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Downloading ({turboProgress}%)</span>
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4 fill-current text-indigo-200" />
+                <span>⚡ Turbo Download</span>
+              </>
+            )}
+          </button>
+
+          {/* Standard Direct Download */}
           <a
             href={directDownloadUrl}
             download
-            className="px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs sm:text-sm flex items-center gap-2 shadow-xs transition-all"
-            title={isCompleted ? "Download complete file at gigabit speed" : "Live stream download straight to your computer"}
+            className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold text-xs sm:text-sm flex items-center gap-1.5 shadow-xs transition-all"
+            title="Direct single-stream download"
           >
             <Download className="w-4 h-4 text-emerald-600" />
             <span>Download {isCompleted ? 'File' : `(${pct}%)`}</span>
@@ -189,7 +297,7 @@ export default function TorrentCard({
             type="button"
             onClick={copyIdmLink}
             className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-semibold text-xs flex items-center gap-1.5 transition-all"
-            title="Copy download URL for Internet Download Manager"
+            title="Copy download URL for external download managers"
           >
             <Copy className="w-3.5 h-3.5 text-indigo-600" />
             <span>IDM</span>

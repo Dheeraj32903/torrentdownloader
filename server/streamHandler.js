@@ -240,7 +240,7 @@ export function handleWebTorrentStream(req, res, file, torrent = null) {
       'Connection': 'keep-alive'
     });
 
-    const stream = file.createReadStream({ start, end });
+    const stream = file.createReadStream({ start, end, highWaterMark: 8 * 1024 * 1024 });
     
     // Attach error handler BEFORE pipe to catch premature close safely
     stream.on('error', (err) => {

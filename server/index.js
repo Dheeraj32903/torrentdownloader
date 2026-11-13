@@ -512,7 +512,30 @@ app.get('/api/download/:hash', (req, res) => {
 
         res.on('error', () => {});
 
-        const stream = file.createReadStream({ start, end });
+        file.select();
+        const pieceLength = activeTorrent.pieceLength || (1024 * 1024);
+        const startPiece = Math.floor((file.offset + start) / pieceLength);
+        const endPiece = Math.floor((file.offset + end) / pieceLength);
+        
+        // Turbo Swarm Burst: Mark 60 pieces ahead as critical so all peers upload simultaneously!
+        activeTorrent.critical(startPiece, Math.min(startPiece + 60, endPiece));
+
+        const stream = file.createReadStream({ 
+          start, 
+          end,
+          highWaterMark: 8 * 1024 * 1024 // 8 MB read-ahead buffer
+        });
+
+        let currentCritMark = startPiece;
+        stream.on('data', () => {
+          const bytesRead = stream.bytesRead || 0;
+          const currentP = Math.floor((file.offset + start + bytesRead) / pieceLength);
+          if (currentP > currentCritMark + 6) {
+            currentCritMark = currentP;
+            activeTorrent.critical(currentCritMark, Math.min(currentCritMark + 60, endPiece));
+          }
+        });
+
         stream.on('error', (err) => {
           if (err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.message?.includes('closed')) return;
           console.warn('[Download] Swarm stream error:', err.message);
@@ -531,7 +554,28 @@ app.get('/api/download/:hash', (req, res) => {
 
         res.on('error', () => {});
 
-        const stream = file.createReadStream();
+        file.select();
+        const pieceLength = activeTorrent.pieceLength || (1024 * 1024);
+        const startPiece = Math.floor(file.offset / pieceLength);
+        const endPiece = Math.floor((file.offset + fileSize - 1) / pieceLength);
+
+        // Turbo Swarm Burst: Mark 60 pieces ahead as critical so all peers upload simultaneously!
+        activeTorrent.critical(startPiece, Math.min(startPiece + 60, endPiece));
+
+        const stream = file.createReadStream({
+          highWaterMark: 8 * 1024 * 1024 // 8 MB read-ahead buffer
+        });
+
+        let currentCritMark = startPiece;
+        stream.on('data', () => {
+          const bytesRead = stream.bytesRead || 0;
+          const currentP = Math.floor((file.offset + bytesRead) / pieceLength);
+          if (currentP > currentCritMark + 6) {
+            currentCritMark = currentP;
+            activeTorrent.critical(currentCritMark, Math.min(currentCritMark + 60, endPiece));
+          }
+        });
+
         stream.on('error', (err) => {
           if (err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.message?.includes('closed')) return;
           console.warn('[Download] Swarm stream error:', err.message);

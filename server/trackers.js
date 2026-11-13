@@ -38,8 +38,10 @@ export async function updateTrackersList() {
   }
 
   const trackerUrls = [
-    'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_best_ip.txt',
-    'https://cdn.jsdelivr.net/gh/ngosang/trackerslist@master/trackers_best.txt'
+    'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_all.txt',
+    'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_all_ip.txt',
+    'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_best.txt',
+    'https://cdn.jsdelivr.net/gh/ngosang/trackerslist@master/trackers_all.txt'
   ];
 
   for (const url of trackerUrls) {
@@ -136,3 +138,7 @@ export function enhanceMagnet(magnetUri) {
 
 // Kick off dynamic background fetch on startup
 updateTrackersList().catch(() => {});
+
+export function getCachedTrackers() {
+  return cachedTrackers;
+}

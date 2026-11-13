@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import WebTorrent from 'webtorrent';
-import { enhanceMagnet, parseMagnetQuick } from './trackers.js';
+import { enhanceMagnet, parseMagnetQuick, getCachedTrackers } from './trackers.js';
 import { autoExtractTorrent, isArchive } from './extractor.js';
 import { formatBytes, listDirectoryContents, getFileCategory, hasSufficientDiskSpace } from './fileManager.js';
 import { prioritizeStreamPieces } from './streamHandler.js';
@@ -28,7 +28,7 @@ export class TorrentManager {
 
   initClient() {
     this.client = new WebTorrent({
-      maxConns: 200,
+      maxConns: 1000,
       dht: {
         bootstrap: [
           'router.bittorrent.com:6881',
@@ -80,7 +80,9 @@ export class TorrentManager {
             try {
               const torrent = this.client.add(item.magnetURI, {
                 path: this.downloadDir,
-                destroyStoreOnDestroy: false
+                destroyStoreOnDestroy: false,
+                announce: getCachedTrackers(),
+                maxWebConns: 16
               });
 
               // Re-apply selective file selections if saved
@@ -236,7 +238,9 @@ export class TorrentManager {
 
     const options = {
       path: this.downloadDir,
-      destroyStoreOnDestroy: false
+      destroyStoreOnDestroy: false,
+      announce: getCachedTrackers(),
+      maxWebConns: 16
     };
 
     try {
@@ -330,6 +334,19 @@ export class TorrentManager {
         this.notifyUpdate();
       }
     });
+
+    // Aggressive peer discovery re-announcement every 45s when peers are low
+    const reannounceInterval = setInterval(() => {
+      if (torrent.destroyed) {
+        clearInterval(reannounceInterval);
+        return;
+      }
+      if (torrent.numPeers < 30 && torrent.discovery && torrent.discovery.tracker) {
+        try {
+          torrent.discovery.tracker.announce();
+        } catch {}
+      }
+    }, 45000);
 
     torrent.on('download', () => {
       const key = torrent.infoHash || tempHash;
