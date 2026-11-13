@@ -1,0 +1,206 @@
+import React, { useState, useRef } from 'react';
+import { 
+  Link2, UploadCloud, Clipboard, Sparkles, Loader2, 
+  ArrowRight, ShieldCheck, Zap, Cpu, X 
+} from 'lucide-react';
+
+export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
+  const [activeTab, setActiveTab] = useState('magnet'); // 'magnet' | 'file'
+  const [magnetInput, setMagnetInput] = useState('');
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!magnetInput.trim() || isLoading) return;
+    onAddMagnet(magnetInput.trim());
+    setMagnetInput('');
+  };
+
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) {
+        setMagnetInput(text.trim());
+      }
+    } catch (err) {
+      console.warn('Clipboard read error:', err);
+    }
+  };
+
+  const handleFileDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0 && files[0].name.endsWith('.torrent')) {
+      onUploadTorrent(files[0]);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      onUploadTorrent(files[0]);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <div className="relative glass-panel rounded-3xl p-6 sm:p-8 max-w-4xl mx-auto shadow-2xl border border-white/10 overflow-hidden">
+      {/* Ambient background glow */}
+      <div className="absolute -top-24 -left-24 w-72 h-72 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Tabs & Feature Status */}
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+        <div className="flex bg-slate-900/80 p-1 rounded-2xl border border-white/10 shadow-inner">
+          <button
+            type="button"
+            onClick={() => setActiveTab('magnet')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+              activeTab === 'magnet'
+                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Link2 className="w-4 h-4" />
+            <span>Magnet Link</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('file')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+              activeTab === 'file'
+                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Upload .torrent</span>
+          </button>
+        </div>
+
+        {/* Feature Badges */}
+        <div className="flex items-center gap-2 text-xs text-slate-400 font-medium flex-wrap">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/60 border border-white/5">
+            <Zap className="w-3.5 h-3.5 text-cyan-400" />
+            <span>HTTP 206 Seeking</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/60 border border-white/5">
+            <Cpu className="w-3.5 h-3.5 text-indigo-400" />
+            <span>No Size Caps</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/60 border border-white/5">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Auto Decompress</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tab Content 1: Magnet Link Form */}
+      {activeTab === 'magnet' && (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="relative flex items-center">
+            <div className="absolute left-4 pointer-events-none text-slate-500">
+              <Link2 className="w-5 h-5 text-cyan-400/60" />
+            </div>
+
+            <input
+              type="text"
+              value={magnetInput}
+              onChange={(e) => setMagnetInput(e.target.value)}
+              placeholder="Paste magnet link (magnet:?xt=urn:btih:...) to stream or extract..."
+              disabled={isLoading}
+              className="w-full glass-input text-slate-100 placeholder-slate-500 text-sm sm:text-base pl-12 pr-28 sm:pr-32 py-4 sm:py-4.5 rounded-2xl font-mono"
+            />
+
+            <div className="absolute right-2.5 flex items-center gap-1.5">
+              {magnetInput && (
+                <button
+                  type="button"
+                  onClick={() => setMagnetInput('')}
+                  className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                  title="Clear input"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handlePaste}
+                className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-all flex items-center gap-1.5"
+                title="Paste magnet link from clipboard"
+              >
+                <Clipboard className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="hidden sm:inline">Paste</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between flex-wrap gap-3 pt-1">
+            <div className="text-xs text-slate-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Connects to DHT bootstrap routers and live trackers instantly</span>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isLoading || !magnetInput.trim()}
+              className="glow-btn-cyan text-white font-bold text-sm sm:text-base px-7 py-3 rounded-2xl flex items-center gap-2.5 disabled:opacity-50 disabled:pointer-events-none transition-all ml-auto shadow-lg shadow-cyan-500/25"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Connecting to Swarm...</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4 fill-current" />
+                  <span>Extract Swarm</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Tab Content 2: .torrent File Drag & Drop */}
+      {activeTab === 'file' && (
+        <div>
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleFileDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition-all ${
+              dragOver
+                ? 'border-cyan-400 bg-cyan-500/10 scale-[1.01]'
+                : 'border-white/15 bg-slate-900/40 hover:border-cyan-500/40 hover:bg-slate-900/60'
+            }`}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".torrent"
+              className="hidden"
+            />
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/10">
+                <UploadCloud className="w-7 h-7" />
+              </div>
+              <div className="text-slate-200 font-bold text-base">
+                Click to browse or drop your <span className="text-cyan-400">.torrent</span> file here
+              </div>
+              <p className="text-xs text-slate-400 max-w-sm">
+                Instant peer discovery, zero byte limits, and streaming enabled automatically upon upload
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
