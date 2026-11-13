@@ -13,7 +13,6 @@ export function formatSpeed(bytesPerSec) {
   if (!bytesPerSec || bytesPerSec < 1) return '0 B/s';
   return `${formatBytes(bytesPerSec)}/s`;
 }
-
 export function formatDuration(seconds) {
   if (!seconds || seconds <= 0 || !isFinite(seconds)) return 'Done';
   if (seconds < 60) return `${Math.ceil(seconds)}s`;
@@ -24,19 +23,15 @@ export function formatDuration(seconds) {
   const remMins = mins % 60;
   return `${hours}h ${remMins}m`;
 }
-
 export function isMediaFile(filename) {
   return /\.(mp4|mkv|webm|avi|mov|mp3|flac|wav|aac|m4a|ogg)$/i.test(filename || '');
 }
-
 export function isArchiveFile(filename) {
   return /\.(zip|rar|7z|tar|gz|bz2|xz|iso)$/i.test(filename || '');
 }
-
 export function isSubtitleFile(filename) {
   return /\.(srt|vtt|sub|ass)$/i.test(filename || '');
 }
-
 /**
  * Extracts smart badges (resolution, audio, source, codec) from media torrent titles
  */
