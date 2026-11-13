@@ -7,56 +7,52 @@ export default function Navbar({ connected, speeds, diskStats, activeCount, onOp
 
   return (
     <header className="sticky top-4 z-40 max-w-[1200px] mx-auto px-4 w-full">
-      <div className="ui-card px-5 py-3 flex items-center justify-between gap-4 bg-white/95 backdrop-blur-md">
+      <div className="ui-card px-5 py-3.5 flex items-center justify-between gap-4">
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <div className="relative flex items-center justify-center w-9 h-9 rounded-xl bg-blue-600 shadow-sm shadow-blue-500/20 text-white">
-            <Zap className="w-5 h-5 fill-white" />
-            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
-            </span>
+          <div className="w-9 h-9 rounded-xl bg-[#0e52ff] flex items-center justify-center text-white shadow-xs shrink-0">
+            <Zap className="w-5 h-5 fill-white text-white" />
           </div>
 
           <div className="flex items-center gap-2">
             <span className="font-display font-bold text-lg tracking-tight text-slate-900">
-              Magnet<span className="text-blue-600">X</span>
+              MagnetX
             </span>
-            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200/80 rounded-full">
-              PRO
+            <span className="px-2 py-0.5 text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md">
+              v2.0
             </span>
           </div>
         </div>
 
-        {/* Live Network & Speeds */}
+        {/* Live Network, Storage & Status */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Global Speed Stats in JetBrains Mono */}
+          {/* Global Speed Stats */}
           <div className="flex items-center gap-3 bg-slate-50 border border-slate-200/80 px-3.5 py-1.5 rounded-xl mono-stat text-xs">
             {/* Download */}
-            <div className="flex items-center gap-1.5 text-blue-600 font-bold" title="Total swarm download speed">
-              <ArrowDown className="w-3.5 h-3.5 text-blue-600 stroke-[2.5]" />
+            <div className="flex items-center gap-1.5 text-blue-600 font-bold" title="Swarm total download speed">
+              <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>{speeds?.downloadFormatted || '0 B/s'}</span>
             </div>
-            <span className="text-slate-300">|</span>
+            <span className="text-slate-200">|</span>
             {/* Upload */}
-            <div className="flex items-center gap-1.5 text-slate-600 font-medium" title="Total swarm upload speed">
-              <ArrowUp className="w-3.5 h-3.5 text-slate-500 stroke-[2.5]" />
+            <div className="flex items-center gap-1.5 text-slate-600 font-medium" title="Swarm total upload speed">
+              <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>{speeds?.uploadFormatted || '0 B/s'}</span>
             </div>
           </div>
 
-          {/* Clickable Interactive Disk Space Meter */}
+          {/* Disk Space Meter */}
           {diskStats && (
             <button
               type="button"
               onClick={onOpenStorage}
-              className="hidden md:flex items-center gap-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 px-3.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer group shadow-2xs"
+              className="hidden md:flex items-center gap-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 px-3.5 py-1.5 rounded-xl text-xs transition-colors cursor-pointer group"
               title="Click to view disk storage & free space"
             >
-              <HardDrive className={`w-3.5 h-3.5 transition-colors ${isStorageHigh ? 'text-amber-500' : 'text-slate-500 group-hover:text-blue-600'}`} />
+              <HardDrive className={`w-3.5 h-3.5 transition-colors ${isStorageHigh ? 'text-amber-500' : 'text-slate-400 group-hover:text-blue-600'}`} />
               <div className="flex flex-col gap-1 w-24 text-left">
                 <div className="flex justify-between text-[10px] text-slate-500 mono-stat font-medium">
-                  <span className="group-hover:text-slate-900 transition-colors">SSD (C:)</span>
+                  <span className="group-hover:text-slate-800 transition-colors">SSD (C:)</span>
                   <span className={isStorageHigh ? 'text-amber-600 font-bold' : 'text-slate-700'}>
                     {percentUsed}%
                   </span>
@@ -71,22 +67,18 @@ export default function Navbar({ connected, speeds, diskStats, activeCount, onOp
             </button>
           )}
 
-          {/* Connection Status Badge */}
+          {/* Swarm Status Indicator */}
           <div 
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold ${
               connected 
                 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
-                : 'bg-rose-50 border-rose-200 text-rose-700 animate-pulse'
+                : 'bg-rose-50 border-rose-200 text-rose-700'
             }`}
-            title={connected ? "Connected to Swarm Engine" : "Reconnecting to server..."}
           >
             {connected ? (
               <>
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="hidden sm:inline font-medium">Live</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span className="hidden sm:inline font-medium">Engine Active</span>
               </>
             ) : (
               <>
