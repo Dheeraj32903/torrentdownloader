@@ -220,7 +220,7 @@ export default function App() {
   const completedCount = torrents.length - activeCount;
 
   return (
-    <div className="min-h-screen flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div className="min-h-screen flex flex-col selection:bg-indigo-500/20 selection:text-indigo-800">
       {/* Top Navbar */}
       <Navbar
         connected={connected}
@@ -242,9 +242,9 @@ export default function App() {
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
-              <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
                 <span>Extracted Transfers</span>
-                <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                   {torrents.length}
                 </span>
               </h2>
@@ -260,19 +260,19 @@ export default function App() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Filter transfers..."
-                  className="glass-input pl-9 pr-4 py-2 rounded-xl text-xs sm:text-sm text-slate-200 placeholder-slate-500 w-48 sm:w-60"
+                  className="glass-input pl-9 pr-4 py-2 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 w-48 sm:w-60 bg-white"
                 />
               </div>
 
               {/* Status Filters */}
-              <div className="flex bg-slate-900/80 p-1 rounded-xl border border-white/10 text-xs font-semibold">
+              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => setFilter('all')}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
                     filter === 'all'
-                      ? 'bg-cyan-500 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   All ({torrents.length})
@@ -282,8 +282,8 @@ export default function App() {
                   onClick={() => setFilter('active')}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
                     filter === 'active'
-                      ? 'bg-cyan-500 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Extracting ({activeCount})
@@ -293,8 +293,8 @@ export default function App() {
                   onClick={() => setFilter('completed')}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
                     filter === 'completed'
-                      ? 'bg-cyan-500 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Ready ({completedCount})
@@ -319,13 +319,13 @@ export default function App() {
             </div>
           ) : (
             /* Empty State */
-            <div className="glass-panel rounded-3xl p-12 text-center border border-white/5 max-w-lg mx-auto space-y-4">
-              <div className="w-16 h-16 rounded-3xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mx-auto shadow-lg shadow-cyan-500/10">
+            <div className="glass-panel rounded-3xl p-12 text-center border border-slate-200 max-w-lg mx-auto space-y-4">
+              <div className="w-16 h-16 rounded-3xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 mx-auto shadow-sm">
                 <FolderDown className="w-8 h-8" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-lg font-bold text-white">No active transfers</h3>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                <h3 className="text-lg font-bold text-slate-900">No active transfers</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
                   Paste any magnet link or drop a .torrent above to instantly extract files, stream in VLC, and generate gigabit direct download links.
                 </p>
               </div>

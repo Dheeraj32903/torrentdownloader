@@ -25,11 +25,11 @@ export default function SpeedSparkline({ currentSpeed, isCompleted }) {
     // Build gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
     if (isCompleted) {
-      gradient.addColorStop(0, 'rgba(16, 185, 129, 0.35)');
+      gradient.addColorStop(0, 'rgba(16, 185, 129, 0.3)');
       gradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
     } else {
-      gradient.addColorStop(0, 'rgba(6, 182, 212, 0.45)');
-      gradient.addColorStop(1, 'rgba(6, 182, 212, 0.0)');
+      gradient.addColorStop(0, 'rgba(79, 70, 229, 0.25)');
+      gradient.addColorStop(1, 'rgba(79, 70, 229, 0.0)');
     }
 
     ctx.beginPath();
@@ -52,10 +52,10 @@ export default function SpeedSparkline({ currentSpeed, isCompleted }) {
     });
 
     // Stroke line
-    ctx.strokeStyle = isCompleted ? '#10b981' : '#06b6d4';
-    ctx.lineWidth = 2;
-    ctx.shadowColor = isCompleted ? 'rgba(16, 185, 129, 0.5)' : 'rgba(6, 182, 212, 0.6)';
-    ctx.shadowBlur = 6;
+    ctx.strokeStyle = isCompleted ? '#059669' : '#4f46e5';
+    ctx.lineWidth = 2.2;
+    ctx.shadowColor = isCompleted ? 'rgba(16, 185, 129, 0.35)' : 'rgba(79, 70, 229, 0.35)';
+    ctx.shadowBlur = 4;
     ctx.stroke();
 
     // Fill area below line
@@ -72,7 +72,7 @@ export default function SpeedSparkline({ currentSpeed, isCompleted }) {
       ref={canvasRef}
       width={160}
       height={40}
-      className="w-28 sm:w-36 h-9 rounded-lg opacity-85"
+      className="w-28 sm:w-36 h-9 rounded-lg opacity-90"
     />
   );
 }

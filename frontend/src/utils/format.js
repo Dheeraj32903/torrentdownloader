@@ -36,3 +36,4 @@ export function isArchiveFile(filename) {
 export function isSubtitleFile(filename) {
   return /\.(srt|vtt|sub|ass)$/i.test(filename || '');
 }
+

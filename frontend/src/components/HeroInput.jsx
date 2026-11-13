@@ -46,21 +46,21 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
   };
 
   return (
-    <div className="relative glass-panel rounded-3xl p-6 sm:p-8 max-w-4xl mx-auto shadow-2xl border border-white/10 overflow-hidden">
+    <div className="relative glass-panel rounded-3xl p-6 sm:p-8 max-w-4xl mx-auto shadow-xl shadow-slate-900/5 border border-slate-200 overflow-hidden">
       {/* Ambient background glow */}
-      <div className="absolute -top-24 -left-24 w-72 h-72 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -top-24 -left-24 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Tabs & Feature Status */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-        <div className="flex bg-slate-900/80 p-1 rounded-2xl border border-white/10 shadow-inner">
+        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
           <button
             type="button"
             onClick={() => setActiveTab('magnet')}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
               activeTab === 'magnet'
-                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/25'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Link2 className="w-4 h-4" />
@@ -71,8 +71,8 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
             onClick={() => setActiveTab('file')}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
               activeTab === 'file'
-                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/25'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <UploadCloud className="w-4 h-4" />
@@ -81,17 +81,17 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
         </div>
 
         {/* Feature Badges */}
-        <div className="flex items-center gap-2 text-xs text-slate-400 font-medium flex-wrap">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/60 border border-white/5">
-            <Zap className="w-3.5 h-3.5 text-cyan-400" />
+        <div className="flex items-center gap-2 text-xs text-slate-600 font-medium flex-wrap">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-slate-200 shadow-2xs">
+            <Zap className="w-3.5 h-3.5 text-indigo-600" />
             <span>HTTP 206 Seeking</span>
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/60 border border-white/5">
-            <Cpu className="w-3.5 h-3.5 text-indigo-400" />
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-slate-200 shadow-2xs">
+            <Cpu className="w-3.5 h-3.5 text-violet-600" />
             <span>No Size Caps</span>
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/60 border border-white/5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-slate-200 shadow-2xs">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
             <span>Auto Decompress</span>
           </div>
         </div>
@@ -101,8 +101,8 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
       {activeTab === 'magnet' && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative flex items-center">
-            <div className="absolute left-4 pointer-events-none text-slate-500">
-              <Link2 className="w-5 h-5 text-cyan-400/60" />
+            <div className="absolute left-4 pointer-events-none text-slate-400">
+              <Link2 className="w-5 h-5 text-indigo-500" />
             </div>
 
             <input
@@ -111,7 +111,7 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
               onChange={(e) => setMagnetInput(e.target.value)}
               placeholder="Paste magnet link (magnet:?xt=urn:btih:...) to stream or extract..."
               disabled={isLoading}
-              className="w-full glass-input text-slate-100 placeholder-slate-500 text-sm sm:text-base pl-12 pr-28 sm:pr-32 py-4 sm:py-4.5 rounded-2xl font-mono"
+              className="w-full glass-input text-slate-900 placeholder-slate-400 text-sm sm:text-base pl-12 pr-28 sm:pr-32 py-4 sm:py-4.5 rounded-2xl font-mono"
             />
 
             <div className="absolute right-2.5 flex items-center gap-1.5">
@@ -119,7 +119,7 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
                 <button
                   type="button"
                   onClick={() => setMagnetInput('')}
-                  className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-all"
                   title="Clear input"
                 >
                   <X className="w-4 h-4" />
@@ -128,18 +128,18 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
               <button
                 type="button"
                 onClick={handlePaste}
-                className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-all flex items-center gap-1.5"
+                className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs"
                 title="Paste magnet link from clipboard"
               >
-                <Clipboard className="w-3.5 h-3.5 text-cyan-400" />
+                <Clipboard className="w-3.5 h-3.5 text-indigo-600" />
                 <span className="hidden sm:inline">Paste</span>
               </button>
             </div>
           </div>
 
           <div className="flex items-center justify-between flex-wrap gap-3 pt-1">
-            <div className="text-xs text-slate-400 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+            <div className="text-xs text-slate-500 flex items-center gap-1.5 font-medium">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
               <span>Connects to DHT bootstrap routers and live trackers instantly</span>
             </div>
 
@@ -147,7 +147,7 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
             <button
               type="submit"
               disabled={isLoading || !magnetInput.trim()}
-              className="glow-btn-cyan text-white font-bold text-sm sm:text-base px-7 py-3 rounded-2xl flex items-center gap-2.5 disabled:opacity-50 disabled:pointer-events-none transition-all ml-auto shadow-lg shadow-cyan-500/25"
+              className="glow-btn-indigo text-white font-bold text-sm sm:text-base px-7 py-3 rounded-2xl flex items-center gap-2.5 disabled:opacity-50 disabled:pointer-events-none transition-all ml-auto shadow-md shadow-indigo-500/25"
             >
               {isLoading ? (
                 <>
@@ -176,8 +176,8 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
             onClick={() => fileInputRef.current?.click()}
             className={`border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition-all ${
               dragOver
-                ? 'border-cyan-400 bg-cyan-500/10 scale-[1.01]'
-                : 'border-white/15 bg-slate-900/40 hover:border-cyan-500/40 hover:bg-slate-900/60'
+                ? 'border-indigo-500 bg-indigo-50/50 scale-[1.01]'
+                : 'border-slate-300 bg-slate-50/70 hover:border-indigo-400 hover:bg-indigo-50/20'
             }`}
           >
             <input
@@ -188,13 +188,13 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
               className="hidden"
             />
             <div className="flex flex-col items-center gap-3">
-              <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/10">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 shadow-sm">
                 <UploadCloud className="w-7 h-7" />
               </div>
-              <div className="text-slate-200 font-bold text-base">
-                Click to browse or drop your <span className="text-cyan-400">.torrent</span> file here
+              <div className="text-slate-800 font-bold text-base">
+                Click to browse or drop your <span className="text-indigo-600">.torrent</span> file here
               </div>
-              <p className="text-xs text-slate-400 max-w-sm">
+              <p className="text-xs text-slate-500 max-w-sm">
                 Instant peer discovery, zero byte limits, and streaming enabled automatically upon upload
               </p>
             </div>

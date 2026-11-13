@@ -7,26 +7,26 @@ export default function ToastContainer({ toasts, onDismiss }) {
   const getIcon = (type) => {
     switch (type) {
       case 'success':
-        return <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />;
+        return <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />;
       case 'error':
-        return <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />;
+        return <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />;
       case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />;
+        return <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />;
       default:
-        return <Info className="w-5 h-5 text-cyan-400 shrink-0" />;
+        return <Info className="w-5 h-5 text-indigo-600 shrink-0" />;
     }
   };
 
   const getBorderColor = (type) => {
     switch (type) {
       case 'success':
-        return 'border-emerald-500/30 bg-emerald-950/40 text-emerald-100';
+        return 'border-emerald-200 bg-white text-slate-800 shadow-lg shadow-emerald-500/10';
       case 'error':
-        return 'border-rose-500/30 bg-rose-950/40 text-rose-100';
+        return 'border-rose-200 bg-white text-slate-800 shadow-lg shadow-rose-500/10';
       case 'warning':
-        return 'border-amber-500/30 bg-amber-950/40 text-amber-100';
+        return 'border-amber-200 bg-white text-slate-800 shadow-lg shadow-amber-500/10';
       default:
-        return 'border-cyan-500/30 bg-cyan-950/40 text-cyan-100';
+        return 'border-indigo-200 bg-white text-slate-800 shadow-lg shadow-indigo-500/10';
     }
   };
 
@@ -35,7 +35,7 @@ export default function ToastContainer({ toasts, onDismiss }) {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl border backdrop-blur-xl shadow-2xl transition-all duration-300 animate-in slide-in-from-bottom-5 ${getBorderColor(
+          className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl border backdrop-blur-xl transition-all duration-300 animate-in slide-in-from-bottom-5 ${getBorderColor(
             toast.type
           )}`}
         >
@@ -46,7 +46,7 @@ export default function ToastContainer({ toasts, onDismiss }) {
           <button
             type="button"
             onClick={() => onDismiss(toast.id)}
-            className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all shrink-0"
+            className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-all shrink-0"
           >
             <X className="w-3.5 h-3.5" />
           </button>
