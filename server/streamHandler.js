@@ -39,19 +39,19 @@ export function prioritizeStreamPieces(torrent, file, byteStart = 0) {
   const endPiece = Math.floor((fileOffset + file.length - 1) / pieceLength);
 
   if (typeof torrent.critical === 'function') {
-    // 1. Mark container header pieces (first 15 pieces) as critical
-    const headerEnd = Math.min(startPiece + 15, endPiece);
+    // 1. Mark container header pieces (first 30 pieces) as critical for instant metadata load
+    const headerEnd = Math.min(startPiece + 30, endPiece);
     torrent.critical(startPiece, headerEnd);
 
-    // 2. Mark footer index/cues pieces (last 15 pieces) as critical so duration & seek map load immediately
-    const footerStart = Math.max(startPiece, endPiece - 15);
+    // 2. Mark footer index/cues pieces (last 20 pieces) as critical so duration & seek map load immediately
+    const footerStart = Math.max(startPiece, endPiece - 20);
     torrent.critical(footerStart, endPiece);
 
     // 3. Dynamic Seek: If user skipped to a specific byte in the duration bar, prioritize target pieces!
     if (byteStart > 0) {
       const seekOffset = fileOffset + byteStart;
       const seekPiece = Math.floor(seekOffset / pieceLength);
-      const seekPieceEnd = Math.min(seekPiece + 15, endPiece);
+      const seekPieceEnd = Math.min(seekPiece + 40, endPiece);
       torrent.critical(seekPiece, seekPieceEnd);
       console.log(`[Stream] Seek priority applied for piece ${seekPiece}..${seekPieceEnd} (offset ${byteStart})`);
     }
@@ -241,6 +241,25 @@ export function handleWebTorrentStream(req, res, file, torrent = null) {
     });
 
     const stream = file.createReadStream({ start, end, highWaterMark: 8 * 1024 * 1024 });
+
+    // Sliding critical piece window to proactively prefetch upcoming chunks from swarm
+    if (torrentObj && typeof torrentObj.critical === 'function') {
+      const pieceLength = torrentObj.pieceLength || (1024 * 1024);
+      const startP = Math.floor((file.offset + start) / pieceLength);
+      const endP = Math.floor((file.offset + end) / pieceLength);
+      let currentMark = startP;
+      
+      stream.on('data', () => {
+        const bytesRead = stream.bytesRead || 0;
+        const currentPiece = Math.floor((file.offset + start + bytesRead) / pieceLength);
+        if (currentPiece > currentMark + 4) {
+          currentMark = currentPiece;
+          try {
+            torrentObj.critical(currentMark, Math.min(currentMark + 40, endP));
+          } catch {}
+        }
+      });
+    }
     
     // Attach error handler BEFORE pipe to catch premature close safely
     stream.on('error', (err) => {

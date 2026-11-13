@@ -1,91 +1,82 @@
 import React from 'react';
-import { Zap, ArrowDown, ArrowUp, HardDrive, Wifi, WifiOff } from 'lucide-react';
+import { Zap, HardDrive } from 'lucide-react';
 
 export default function Navbar({ connected, speeds, diskStats, activeCount, onOpenStorage }) {
   const percentUsed = diskStats?.percentUsed || 0;
   const isStorageHigh = percentUsed > 85;
 
   return (
-    <header className="sticky top-4 z-40 max-w-[1200px] mx-auto px-4 w-full">
+    <header className="sticky top-4 z-40 max-w-[1200px] mx-auto px-4 w-full font-mono">
       <div className="ui-card px-5 py-3.5 flex items-center justify-between gap-4">
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#0e52ff] flex items-center justify-center text-white shadow-xs shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-[#0066FF] flex items-center justify-center text-white shadow-sm shadow-blue-500/30 shrink-0">
             <Zap className="w-5 h-5 fill-white text-white" />
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="font-display font-bold text-lg tracking-tight text-slate-900">
-              MagnetX
+            <span className="font-bold text-base sm:text-lg tracking-tight text-[#0D0F1C]">
+              MAGNETX
             </span>
-            <span className="px-2 py-0.5 text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md">
-              v2.0
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#EBF2FF] text-[#0066FF] border border-[#B8D0FF]">
+              [ PRO ]
             </span>
           </div>
         </div>
 
-        {/* Live Network, Storage & Status */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Live Network & Speeds */}
+        <div className="flex items-center gap-2.5 sm:gap-3">
           {/* Global Speed Stats */}
-          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200/80 px-3.5 py-1.5 rounded-xl mono-stat text-xs">
-            {/* Download */}
-            <div className="flex items-center gap-1.5 text-blue-600 font-bold" title="Swarm total download speed">
-              <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
+          <div className="flex items-center gap-2.5 bg-white border border-[#E0E4EC] px-3.5 py-1.5 rounded-xl text-xs shadow-xs">
+            <div className="flex items-center gap-1 text-[#059669] font-bold mono-stat" title="Swarm download speed">
+              <span>↓</span>
               <span>{speeds?.downloadFormatted || '0 B/s'}</span>
             </div>
-            <span className="text-slate-200">|</span>
-            {/* Upload */}
-            <div className="flex items-center gap-1.5 text-slate-600 font-medium" title="Swarm total upload speed">
-              <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span className="text-[#E0E4EC] font-bold">/</span>
+            <div className="flex items-center gap-1 text-[#646E82] font-semibold mono-stat" title="Swarm upload speed">
+              <span className="text-slate-400">↑</span>
               <span>{speeds?.uploadFormatted || '0 B/s'}</span>
             </div>
           </div>
 
-          {/* Disk Space Meter */}
+          {/* Clean SSD Storage Meter - No text highlight, no green box */}
           {diskStats && (
             <button
               type="button"
               onClick={onOpenStorage}
-              className="hidden md:flex items-center gap-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 px-3.5 py-1.5 rounded-xl text-xs transition-colors cursor-pointer group"
+              className="hidden md:flex items-center gap-2.5 bg-white hover:bg-[#F8FAFC] border border-[#E0E4EC] hover:border-[#B8D0FF] px-3.5 py-1.5 rounded-xl text-xs shadow-xs transition-all cursor-pointer group"
               title="Click to view disk storage & free space"
             >
-              <HardDrive className={`w-3.5 h-3.5 transition-colors ${isStorageHigh ? 'text-amber-500' : 'text-slate-400 group-hover:text-blue-600'}`} />
-              <div className="flex flex-col gap-1 w-24 text-left">
-                <div className="flex justify-between text-[10px] text-slate-500 mono-stat font-medium">
-                  <span className="group-hover:text-slate-800 transition-colors">SSD (C:)</span>
-                  <span className={isStorageHigh ? 'text-amber-600 font-bold' : 'text-slate-700'}>
-                    {percentUsed}%
-                  </span>
-                </div>
-                <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full rounded-full transition-all duration-500 ${isStorageHigh ? 'bg-amber-500' : 'bg-blue-600'}`}
-                    style={{ width: `${percentUsed}%` }}
-                  />
-                </div>
+              <HardDrive className={`w-3.5 h-3.5 ${isStorageHigh ? 'text-amber-500' : 'text-[#0066FF]'}`} />
+              <span className="text-[#0D0F1C] font-bold">SSD</span>
+              
+              {/* Progress bar */}
+              <div className="w-14 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60 p-[1px] flex items-center">
+                <div 
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    isStorageHigh ? 'bg-amber-500' : 'bg-[#0066FF]'
+                  }`}
+                  style={{ width: `${Math.min(percentUsed, 100)}%` }}
+                />
               </div>
+
+              {/* Clean percentage label */}
+              <span className={`mono-stat font-bold ${isStorageHigh ? 'text-amber-600' : 'text-[#0D0F1C]'}`}>
+                {percentUsed}%
+              </span>
             </button>
           )}
 
-          {/* Swarm Status Indicator */}
+          {/* Status Indicator */}
           <div 
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold font-mono shadow-xs ${
               connected 
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
-                : 'bg-rose-50 border-rose-200 text-rose-700'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                : 'bg-rose-50 text-rose-700 border-rose-200'
             }`}
           >
-            {connected ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span className="hidden sm:inline font-medium">Engine Active</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Offline</span>
-              </>
-            )}
+            {connected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+            <span>{connected ? '[ LIVE ]' : '[ OFFLINE ]'}</span>
           </div>
         </div>
       </div>

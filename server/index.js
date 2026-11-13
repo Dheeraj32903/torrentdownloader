@@ -189,6 +189,24 @@ app.delete('/api/torrents/:hash', async (req, res) => {
   }
 });
 
+// Pause an active torrent download
+app.post('/api/torrents/:hash/pause', (req, res) => {
+  const result = torrentManager.pauseTorrent(req.params.hash);
+  res.json(result);
+});
+
+// Resume a paused torrent download
+app.post('/api/torrents/:hash/resume', (req, res) => {
+  const result = torrentManager.resumeTorrent(req.params.hash);
+  res.json(result);
+});
+
+// Get real-time connected swarm peers list
+app.get('/api/torrents/:hash/peers', (req, res) => {
+  const peers = torrentManager.getTorrentPeers(req.params.hash);
+  res.json({ peers, count: peers.length });
+});
+
 // Manual Archive Extraction trigger for whole torrent
 app.post('/api/torrents/:hash/extract', async (req, res) => {
   const { hash } = req.params;

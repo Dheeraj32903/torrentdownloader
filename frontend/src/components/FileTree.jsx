@@ -11,18 +11,18 @@ export default function FileTree({ torrent, files, onStreamFile, onExtractSingle
 
   if (!files || files.length === 0) {
     return (
-      <div className="py-6 text-center text-xs text-slate-500 font-mono">
+      <div className="py-6 text-center text-xs text-[#646E82] font-mono">
         Discovering swarm file tree & metadata...
       </div>
     );
   }
 
   const getIcon = (name) => {
-    if (/\.(mp4|mkv|webm|avi|mov)$/i.test(name)) return <Film className="w-4 h-4 text-blue-600 shrink-0" />;
+    if (/\.(mp4|mkv|webm|avi|mov)$/i.test(name)) return <Film className="w-4 h-4 text-[#0066FF] shrink-0" />;
     if (/\.(mp3|flac|wav|aac|ogg|m4a)$/i.test(name)) return <Music className="w-4 h-4 text-indigo-600 shrink-0" />;
     if (isArchiveFile(name)) return <Archive className="w-4 h-4 text-amber-600 shrink-0" />;
     if (isSubtitleFile(name)) return <Subtitles className="w-4 h-4 text-emerald-600 shrink-0" />;
-    return <FileText className="w-4 h-4 text-slate-500 shrink-0" />;
+    return <FileText className="w-4 h-4 text-[#646E82] shrink-0" />;
   };
 
   const copyToClipboard = (url, name) => {
@@ -45,35 +45,34 @@ export default function FileTree({ torrent, files, onStreamFile, onExtractSingle
   const subtitleCount = files.filter(f => isSubtitleFile(f.name || f.path)).length;
 
   return (
-    <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+    <div className="mt-4 pt-4 border-t border-[#E0E4EC] space-y-3 font-mono">
       {/* Header & Filter Row */}
       <div className="flex items-center justify-between flex-wrap gap-2.5 px-1">
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
             onClick={() => setFilterType('all')}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all border ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               filterType === 'all'
-                ? 'bg-blue-50 text-blue-700 border-blue-200'
-                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                ? 'btn-primary'
+                : 'btn-secondary text-[#646E82]'
             }`}
           >
-            All Files <span className="mono-stat text-[11px] opacity-75">({files.length})</span>
+            [ ALL ({files.length}) ]
           </button>
 
           {videoCount > 0 && (
             <button
               type="button"
               onClick={() => setFilterType('video')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all border flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 filterType === 'video'
-                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  ? 'btn-primary'
+                  : 'btn-secondary text-[#646E82]'
               }`}
             >
-              <Film className="w-3.5 h-3.5 text-blue-600" />
-              <span>Videos</span>
-              <span className="mono-stat text-[11px] opacity-75">({videoCount})</span>
+              <Film className="w-3 h-3" />
+              <span>[ VIDEOS ({videoCount}) ]</span>
             </button>
           )}
 
@@ -81,15 +80,14 @@ export default function FileTree({ torrent, files, onStreamFile, onExtractSingle
             <button
               type="button"
               onClick={() => setFilterType('subtitle')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all border flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 filterType === 'subtitle'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  ? 'btn-primary'
+                  : 'btn-secondary text-[#646E82]'
               }`}
             >
-              <Subtitles className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Subtitles</span>
-              <span className="mono-stat text-[11px] opacity-75">({subtitleCount})</span>
+              <Subtitles className="w-3 h-3" />
+              <span>[ SUBS ({subtitleCount}) ]</span>
             </button>
           )}
 
@@ -97,36 +95,35 @@ export default function FileTree({ torrent, files, onStreamFile, onExtractSingle
             <button
               type="button"
               onClick={() => setFilterType('archive')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all border flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 filterType === 'archive'
-                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  ? 'btn-primary'
+                  : 'btn-secondary text-[#646E82]'
               }`}
             >
-              <Archive className="w-3.5 h-3.5 text-amber-600" />
-              <span>Archives</span>
-              <span className="mono-stat text-[11px] opacity-75">({archiveCount})</span>
+              <Archive className="w-3 h-3" />
+              <span>[ ARCHIVES ({archiveCount}) ]</span>
             </button>
           )}
         </div>
 
-        {/* Mini file search if more than 5 files */}
+        {/* Mini file search */}
         {files.length > 5 && (
           <div className="relative flex items-center">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 text-[#8F9CAE] absolute left-3 pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search files..."
-              className="ui-input text-xs text-slate-800 placeholder-slate-400 pl-8 pr-2.5 py-1 w-40 sm:w-48 font-sans"
+              className="ui-input text-xs text-[#0D0F1C] placeholder-[#8F9CAE] pl-8 pr-3 py-1 w-40 sm:w-48 font-mono"
             />
           </div>
         )}
       </div>
 
       {/* File List Container */}
-      <div className="divide-y divide-slate-100 bg-slate-50/60 rounded-xl border border-slate-200 overflow-hidden max-h-80 overflow-y-auto">
+      <div className="divide-y divide-[#E0E4EC] bg-[#F8FAFC] rounded-xl border border-[#E0E4EC] overflow-hidden max-h-80 overflow-y-auto">
         {filteredFiles.map((file, idx) => {
           const filePath = file.path || file.name;
           const streamUrl = `/api/stream/${torrent.infoHash}?file=${encodeURIComponent(filePath)}`;
@@ -144,11 +141,11 @@ export default function FileTree({ torrent, files, onStreamFile, onExtractSingle
               {/* File details */}
               <div className="flex items-center gap-2.5 min-w-0 flex-1">
                 {getIcon(file.name || filePath)}
-                <span className="truncate text-slate-800 font-semibold text-xs sm:text-[13px]" title={filePath}>
+                <span className="truncate text-[#0D0F1C] font-semibold text-xs sm:text-[13px]" title={filePath}>
                   {file.name || filePath}
                 </span>
-                <span className="text-[11px] text-slate-500 mono-stat shrink-0 ml-1">
-                  {file.sizeFormatted || formatBytes(file.size || file.length || 0)}
+                <span className="text-[11px] text-[#646E82] mono-stat shrink-0 ml-1">
+                  ( {file.sizeFormatted || formatBytes(file.size || file.length || 0)} )
                 </span>
               </div>
 
@@ -159,16 +156,16 @@ export default function FileTree({ torrent, files, onStreamFile, onExtractSingle
                     <button
                       type="button"
                       onClick={() => onStreamFile(torrent, file)}
-                      className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold text-[11px] flex items-center gap-1 transition-all"
+                      className="btn-primary px-2.5 py-1 text-[11px] flex items-center gap-1"
                       title="Stream in VLC or External Media Player"
                     >
-                      <Play className="w-3 h-3 fill-current text-blue-600" />
-                      <span>Stream VLC</span>
+                      <Play className="w-3 h-3 fill-current text-white" />
+                      <span>[ STREAM ]</span>
                     </button>
                     <a
                       href={playlistUrl}
                       download
-                      className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium text-[11px] transition-all"
+                      className="btn-secondary px-2 py-1 text-[11px] font-bold"
                       title="Download .m3u playlist"
                     >
                       .m3u
@@ -180,31 +177,31 @@ export default function FileTree({ torrent, files, onStreamFile, onExtractSingle
                   <button
                     type="button"
                     onClick={() => onExtractSingle(torrent.infoHash, filePath)}
-                    className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-semibold text-[11px] flex items-center gap-1 transition-all"
+                    className="btn-secondary px-2.5 py-1 text-amber-600 border-amber-200 hover:bg-amber-50 text-[11px] flex items-center gap-1"
                     title="Extract compressed archive via background worker"
                   >
-                    <FolderArchive className="w-3 h-3 text-amber-600" />
-                    <span>Extract</span>
+                    <FolderArchive className="w-3 h-3" />
+                    <span>[ EXTRACT ]</span>
                   </button>
                 )}
 
                 <a
                   href={downloadUrl}
                   download
-                  className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold text-[11px] flex items-center gap-1 transition-all"
+                  className="btn-secondary px-2.5 py-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50 text-[11px] flex items-center gap-1 font-bold"
                   title="Direct download to your computer"
                 >
-                  <Download className="w-3 h-3 text-emerald-600" />
-                  <span>Download</span>
+                  <Download className="w-3 h-3" />
+                  <span>[ DL ]</span>
                 </a>
 
                 <button
                   type="button"
                   onClick={() => copyToClipboard(fullDownloadUrl, file.name || filePath)}
-                  className="p-1 rounded-lg bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-slate-200 transition-all"
+                  className="btn-secondary p-1 text-[11px]"
                   title="Copy direct download link"
                 >
-                  <Copy className="w-3 h-3" />
+                  <Copy className="w-3 h-3 text-[#646E82]" />
                 </button>
               </div>
             </div>

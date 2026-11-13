@@ -46,7 +46,7 @@ export default function StorageModal({
       onClick={onClose}
     >
       <div 
-        className="relative w-full max-w-xl bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden"
+        className="relative w-full max-w-xl bg-white border border-[#E0E4EC] rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden font-mono"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -55,15 +55,15 @@ export default function StorageModal({
             <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border ${
               isStorageHigh 
                 ? 'bg-amber-50 border-amber-200 text-amber-600' 
-                : 'bg-blue-50 border-blue-100 text-blue-600'
+                : 'bg-[#EBF2FF] border-[#B8D0FF] text-[#0066FF]'
             }`}>
               <HardDrive className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+              <h3 className="text-lg sm:text-xl font-bold text-[#0D0F1C] tracking-tight">
                 Disk Storage & Cache Manager
               </h3>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-xs text-[#646E82] font-medium">
                 Local Drive (C:\) • Download Cache
               </p>
             </div>
@@ -72,78 +72,78 @@ export default function StorageModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all"
+            className="btn-secondary p-2 text-[#646E82] hover:text-[#0D0F1C]"
             title="Close modal"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Storage Bar Card */}
-        <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-3 mb-6">
+        <div className="bg-[#F8FAFC] border border-[#E0E4EC] rounded-2xl p-4 sm:p-5 space-y-3 mb-6">
           <div className="flex items-center justify-between text-xs mono-stat">
             <div className="flex items-center gap-2">
-              <span className="text-slate-900 font-bold text-sm">{percentUsed}% Used</span>
-              <span className="text-slate-300">|</span>
-              <span className="text-blue-600 font-semibold">{diskFreeFormatted} Free</span>
+              <span className="text-[#0D0F1C] font-bold text-sm">{percentUsed}% Used</span>
+              <span className="text-[#E0E4EC]">|</span>
+              <span className="text-[#0066FF] font-semibold">{diskFreeFormatted} Free</span>
             </div>
-            <div className="text-slate-500 font-medium">
+            <div className="text-[#646E82] font-medium">
               Total: {diskTotalFormatted}
             </div>
           </div>
 
           {/* Meter */}
-          <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden p-0.5">
+          <div className="w-full h-3 bg-slate-200/80 rounded-full overflow-hidden p-0.5 border border-slate-200">
             <div 
               className={`h-full rounded-full transition-all duration-500 ${
                 isStorageHigh 
                   ? 'bg-amber-500' 
-                  : 'bg-blue-600'
+                  : 'bg-[#0066FF]'
               }`}
               style={{ width: `${percentUsed}%` }}
             />
           </div>
 
           {/* Breakdown summary */}
-          <div className="grid grid-cols-2 gap-3 pt-2 text-xs border-t border-slate-200/80">
+          <div className="grid grid-cols-2 gap-3 pt-2 text-xs border-t border-[#E0E4EC]">
             <div>
-              <span className="text-slate-500 block text-[11px]">MagnetX Downloads</span>
-              <span className="text-blue-600 font-bold mono-stat text-sm">{usedInDownloadsFormatted}</span>
+              <span className="text-[#646E82] block text-[11px]">MagnetX Downloads</span>
+              <span className="text-[#0066FF] font-bold mono-stat text-sm">{usedInDownloadsFormatted}</span>
             </div>
             <div>
-              <span className="text-slate-500 block text-[11px]">Active Transfers</span>
-              <span className="text-slate-800 font-bold mono-stat text-sm">{torrents.length} items</span>
+              <span className="text-[#646E82] block text-[11px]">Active Transfers</span>
+              <span className="text-[#0D0F1C] font-bold mono-stat text-sm">{torrents.length} items</span>
             </div>
           </div>
         </div>
 
         {/* Informative notice */}
-        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3.5 mb-6 text-xs text-slate-700 space-y-1">
-          <div className="flex items-center gap-1.5 font-bold text-blue-900">
-            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+        <div className="bg-[#EBF2FF] border border-[#B8D0FF] rounded-xl p-3.5 mb-6 text-xs text-[#0D0F1C] space-y-1">
+          <div className="flex items-center gap-1.5 font-bold text-[#0066FF]">
+            <Sparkles className="w-3.5 h-3.5" />
             <span>How Local Storage Works</span>
           </div>
-          <p className="text-[11px] text-slate-600 leading-relaxed">
+          <p className="text-[11px] text-[#646E82] leading-relaxed">
             MagnetX saves video chunks to your SSD so you can stream them without internet buffer lag. Once you finish watching a movie, you can delete it below to keep your disk 100% clean.
           </p>
         </div>
 
         {/* Torrents List & Cleanup */}
         <div className="space-y-3 mb-6">
-          <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+          <label className="text-xs font-semibold text-[#0D0F1C] flex items-center justify-between">
             <span>Stored Files ({torrents.length})</span>
-            <span className="text-[11px] text-slate-500 font-mono">1-Click Free Space</span>
+            <span className="text-[11px] text-[#646E82] font-mono">[ 1-Click Free Space ]</span>
           </label>
 
           {torrents.length > 0 ? (
-            <div className="divide-y divide-slate-100 bg-white border border-slate-200 rounded-xl max-h-48 overflow-y-auto">
+            <div className="divide-y divide-[#E0E4EC] bg-white border border-[#E0E4EC] rounded-xl max-h-48 overflow-y-auto">
               {torrents.map((t) => (
                 <div key={t.infoHash} className="p-3 flex items-center justify-between gap-3 text-xs hover:bg-slate-50/60">
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-slate-900 truncate" title={t.name}>
+                    <div className="font-semibold text-[#0D0F1C] truncate" title={t.name}>
                       {t.name}
                     </div>
-                    <div className="text-[11px] text-slate-500 mono-stat">
+                    <div className="text-[11px] text-[#646E82] mono-stat">
                       {formatBytes(t.downloaded || t.total || 0)} • {t.status === 'completed' ? 'Ready' : `${Math.round((t.progress || 0) * 100)}%`}
                     </div>
                   </div>
@@ -151,17 +151,17 @@ export default function StorageModal({
                   <button
                     type="button"
                     onClick={() => onDeleteTorrent(t.infoHash, t.name)}
-                    className="px-2.5 py-1.5 rounded-lg text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs font-semibold flex items-center gap-1 transition-all shrink-0"
+                    className="btn-secondary px-3 py-1.5 text-rose-600 border-rose-200 hover:bg-rose-50 text-xs font-semibold flex items-center gap-1 shrink-0"
                     title="Delete files from disk"
                   >
                     <Trash2 className="w-3 h-3" />
-                    <span>Free Space</span>
+                    <span>[ FREE SPACE ]</span>
                   </button>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="p-6 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="p-6 text-center text-xs text-[#646E82] bg-[#F8FAFC] rounded-xl border border-[#E0E4EC]">
               No active files stored on disk. Your drive is clean!
             </div>
           )}
@@ -173,10 +173,10 @@ export default function StorageModal({
             type="button"
             onClick={handlePurgeAllClick}
             disabled={purging}
-            className="w-full py-3 px-4 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+            className="btn-secondary w-full py-3 px-4 text-rose-600 border-rose-200 hover:bg-rose-50 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <FolderX className="w-4 h-4 text-rose-600" />
-            <span>{purging ? 'Purging All Files...' : 'Purge All Downloads & Wipe Cache'}</span>
+            <span>{purging ? '[ PURGING ALL FILES... ]' : '[ ⚠️ PURGE ALL DOWNLOADS & WIPE CACHE ]'}</span>
           </button>
         )}
       </div>

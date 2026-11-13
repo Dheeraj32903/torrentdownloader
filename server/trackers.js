@@ -1,7 +1,8 @@
-import https from 'https';
+import https from 'node:https';
 
-// Default high-speed fallback trackers (in case remote fetch is offline)
+// Default high-speed fallback trackers (UDP, HTTPS, and WebSocket)
 export const DEFAULT_TRACKERS = [
+  // Top-tier UDP Trackers
   'udp://tracker.opentrackr.org:1337/announce',
   'udp://open.stealth.si:80/announce',
   'udp://tracker.torrent.eu.org:451/announce',
@@ -17,11 +18,31 @@ export const DEFAULT_TRACKERS = [
   'udp://tracker.theoks.net:6969/announce',
   'udp://tracker.moeking.me:6969/announce',
   'udp://tracker.altrosky.nl:6969/announce',
-  'http://tracker.openbittorrent.com:80/announce',
   'udp://opentracker.i2p.rocks:6969/announce',
   'udp://open.tracker.cl:1337/announce',
   'udp://tracker.bitsearch.to:1337/announce',
-  'udp://retracker.lanta-net.ru:2710/announce'
+  'udp://retracker.lanta-net.ru:2710/announce',
+  'udp://tracker.tiny-vps.com:6969/announce',
+  'udp://tracker.swatech.info:2710/announce',
+  'udp://movies.zsw.ca:6969/announce',
+
+  // Top-tier HTTPS Trackers (Bypasses ISP UDP block in India & restricted networks)
+  'https://tr.zukizuki.org:443/announce',
+  'https://tracker.pmman.tech:443/announce',
+  'https://ht.therarbg.to:443/announce',
+  'https://tracker.tamersunion.org:443/announce',
+  'https://tracker.foreverpirates.co:443/announce',
+  'https://004430.xyz:443/announce',
+  'https://tracker.zhuqiy.com:443/announce',
+  'https://tracker.lilithraws.org:443/announce',
+  'https://open.tracker.ink:443/announce',
+  'http://tracker.openbittorrent.com:80/announce',
+  'http://tracker.bt4g.com:2095/announce',
+
+  // WebSocket WebTorrent Trackers (Browser-to-Swarm & WebRTC hybrid)
+  'wss://tracker.openwebtorrent.com',
+  'wss://tracker.btorrent.xyz',
+  'wss://tracker.fastcast.nz'
 ];
 
 let cachedTrackers = [...DEFAULT_TRACKERS];
@@ -32,15 +53,15 @@ let lastFetchedTime = 0;
  */
 export async function updateTrackersList() {
   const now = Date.now();
-  // Refresh cache every 12 hours
-  if (now - lastFetchedTime < 12 * 60 * 60 * 1000 && cachedTrackers.length > DEFAULT_TRACKERS.length) {
+  // Refresh cache every 6 hours
+  if (now - lastFetchedTime < 6 * 60 * 60 * 1000 && cachedTrackers.length > DEFAULT_TRACKERS.length) {
     return cachedTrackers;
   }
 
   const trackerUrls = [
+    'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_best.txt',
     'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_all.txt',
     'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_all_ip.txt',
-    'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_best.txt',
     'https://cdn.jsdelivr.net/gh/ngosang/trackerslist@master/trackers_all.txt'
   ];
 
@@ -51,18 +72,18 @@ export async function updateTrackersList() {
         const lines = text
           .split('\n')
           .map(l => l.trim())
-          .filter(l => l.startsWith('udp://') || l.startsWith('http://') || l.startsWith('https://'));
+          .filter(l => l.startsWith('udp://') || l.startsWith('http://') || l.startsWith('https://') || l.startsWith('wss://'));
 
         if (lines.length > 5) {
           // Merge unique trackers
           const set = new Set([...DEFAULT_TRACKERS, ...lines]);
           cachedTrackers = Array.from(set);
           lastFetchedTime = now;
-          console.log(`[Trackers] Dynamically loaded ${cachedTrackers.length} active BitTorrent trackers from ngosang/trackerslist.`);
+          console.log(`[Trackers] Loaded ${cachedTrackers.length} active BitTorrent trackers (UDP + HTTPS + WSS).`);
           return cachedTrackers;
         }
       }
-    } catch (err) {
+    } catch {
       // Try next mirror
     }
   }
@@ -72,7 +93,7 @@ export async function updateTrackersList() {
 
 function fetchText(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { timeout: 5000 }, (res) => {
+    https.get(url, { timeout: 6000 }, (res) => {
       if (res.statusCode !== 200) {
         return reject(new Error(`Failed with status ${res.statusCode}`));
       }
@@ -102,32 +123,28 @@ export function parseMagnetQuick(magnetUri) {
     }
   }
 
-  let size = 0;
-  if (xlMatch) {
-    try {
-      size = parseInt(xlMatch[1], 10);
-    } catch {}
-  }
-
+  const size = xlMatch ? parseInt(xlMatch[1], 10) : 0;
   return { infoHash, name, size };
 }
 
 /**
- * Ensures a magnet URI includes top active public trackers
+ * Enhances a magnet link by appending all high-speed trackers
  */
 export function enhanceMagnet(magnetUri) {
-  if (!magnetUri || typeof magnetUri !== 'string') return magnetUri;
-  
+  if (typeof magnetUri !== 'string' || !magnetUri.startsWith('magnet:')) return magnetUri;
+
+  const trackers = getCachedTrackers();
   const existingTrackers = new Set();
-  const trMatches = magnetUri.matchAll(/[?&]tr=([^&]+)/g);
-  for (const match of trMatches) {
-    try {
-      existingTrackers.add(decodeURIComponent(match[1]));
-    } catch {}
+  const trMatches = magnetUri.match(/[?&]tr=([^&]+)/g);
+  if (trMatches) {
+    trMatches.forEach(m => {
+      const val = decodeURIComponent(m.slice(4));
+      existingTrackers.add(val);
+    });
   }
 
   let enhanced = magnetUri;
-  for (const tr of cachedTrackers) {
+  for (const tr of trackers) {
     if (!existingTrackers.has(tr)) {
       enhanced += `&tr=${encodeURIComponent(tr)}`;
     }
@@ -136,9 +153,9 @@ export function enhanceMagnet(magnetUri) {
   return enhanced;
 }
 
-// Kick off dynamic background fetch on startup
-updateTrackersList().catch(() => {});
-
 export function getCachedTrackers() {
   return cachedTrackers;
 }
+
+// Initial background load
+updateTrackersList().catch(() => {});

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Tv, Download, Copy, Trash2, ChevronDown, ChevronUp, 
   Users, ArrowDownCircle, ArrowUpCircle, Clock, CheckCircle2, 
-  Layers, Zap, Loader2, Film, Play
+  Layers, Zap, Loader2, Film, Play, Pause
 } from 'lucide-react';
 import SpeedSparkline from './SpeedSparkline.jsx';
 import FileTree from './FileTree.jsx';
@@ -28,6 +28,19 @@ export default function TorrentCard({
 
   const pct = Math.min(Math.round((torrent.progress || 0) * 100), 100);
   const isCompleted = torrent.status === 'completed' || pct === 100;
+  const isPaused = torrent.status === 'paused';
+
+  // Toggle Pause/Resume
+  const handleTogglePause = async () => {
+    try {
+      const endpoint = isPaused ? `/api/torrents/${torrent.infoHash}/resume` : `/api/torrents/${torrent.infoHash}/pause`;
+      const res = await fetch(endpoint, { method: 'POST' });
+      const data = await res.json();
+      onShowToast(data.message || (isPaused ? 'Resumed transfer' : 'Paused transfer'), 'info');
+    } catch (e) {
+      onShowToast('Action failed: ' + e.message, 'warning');
+    }
+  };
 
   // Auto-fetch files when expanded
   useEffect(() => {
@@ -158,76 +171,57 @@ export default function TorrentCard({
     }
   };
 
-  const getTagStyle = (type) => {
-    switch (type) {
-      case 'purple':
-      case 'indigo':
-        return 'bg-indigo-50 text-indigo-700 border-indigo-200';
-      case 'blue':
-      case 'sky':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'emerald':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'amber':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
-      default:
-        return 'bg-slate-100 text-slate-700 border-slate-200';
-    }
-  };
-
   return (
     <div 
-      className={`ui-card p-5 sm:p-6 transition-all duration-200 relative ${
+      className={`ui-card p-5 sm:p-6 transition-all relative font-mono ${
         isCompleted ? 'ui-card-highlight' : ''
       }`}
     >
       {/* Top Media Header Row */}
       <div className="flex items-start justify-between gap-4 mb-4">
-        <div className="flex items-start gap-3.5 min-w-0 flex-1">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
           {/* Media Icon Badge */}
-          <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-            <Film className="w-5 h-5 sm:w-6 sm:h-6" />
+          <div className="w-10 h-10 rounded-xl bg-[#EBF2FF] text-[#0066FF] border border-[#B8D0FF] flex items-center justify-center shrink-0 shadow-xs">
+            <Film className="w-5 h-5" />
           </div>
 
-          <div className="min-w-0 flex-1 space-y-1.5">
-            {/* Tag chips & Status */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Status Pill */}
+          <div className="min-w-0 flex-1 space-y-2">
+            {/* Tag chips matching Product UI Styleguide & Monospace standard */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Status Chip */}
               {isCompleted ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Ready (100%)</span>
+                <span className="chip-retro-green px-2.5 py-0.5 text-[11px] flex items-center gap-1">
+                  <span>( READY 100% )</span>
+                </span>
+              ) : isPaused ? (
+                <span className="chip-retro px-2.5 py-0.5 text-[11px] text-slate-500 flex items-center gap-1">
+                  <span>( PAUSED {pct}% )</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
-                  </span>
-                  <span>Extracting ({pct}%)</span>
+                <span className="chip-retro-amber px-2.5 py-0.5 text-[11px] flex items-center gap-1">
+                  <span>( EXTRACTING {pct}% )</span>
                 </span>
               )}
 
               {/* Total Size */}
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 mono-stat">
-                {formatBytes(torrent.total || 0)}
+              <span className="chip-retro px-2.5 py-0.5 text-[11px]">
+                ( {formatBytes(torrent.total || 0)} )
               </span>
 
               {/* Smart Extracted Tags */}
               {mediaTags.map((tag, i) => (
                 <span
                   key={i}
-                  className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${getTagStyle(tag.type)}`}
+                  className="chip-retro px-2 py-0.5 text-[10px] uppercase font-bold"
                 >
-                  {tag.label}
+                  ( {tag.label} )
                 </span>
               ))}
 
               {/* Connected Peers & Boost */}
-              <div className="flex items-center gap-1.5 ml-auto sm:ml-0">
-                <span className="text-xs text-slate-600 font-semibold flex items-center gap-1 mono-stat px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200">
-                  <Users className="w-3.5 h-3.5 text-blue-600" />
-                  <span>{torrent.numPeers || 0} peers</span>
+              <div className="flex items-center gap-1 ml-auto sm:ml-0">
+                <span className="chip-retro px-2.5 py-0.5 text-[11px]">
+                  ( {torrent.numPeers || 0} peers )
                 </span>
 
                 {!isCompleted && (
@@ -235,15 +229,11 @@ export default function TorrentCard({
                     type="button"
                     onClick={handleBoost}
                     disabled={boosting}
-                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 border transition-all cursor-pointer ${
-                      boosting
-                        ? 'bg-amber-50 text-amber-700 border-amber-300 animate-pulse'
-                        : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
-                    }`}
-                    title="Boost swarm: forcefully re-announce to 70+ trackers for maximum speed"
+                    className="btn-primary px-2.5 py-0.5 text-[10px] flex items-center gap-1"
+                    title="Boost swarm: re-announce to 70+ trackers"
                   >
                     <Zap className="w-2.5 h-2.5 fill-current" />
-                    <span>{boosting ? 'Boosting...' : 'Boost'}</span>
+                    <span>{boosting ? '[ BOOSTING ]' : '[ BOOST ]'}</span>
                   </button>
                 )}
               </div>
@@ -251,7 +241,7 @@ export default function TorrentCard({
 
             {/* Cleaned Movie Title */}
             <h3 
-              className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-snug truncate" 
+              className="text-base sm:text-lg font-bold text-[#0D0F1C] tracking-tight leading-snug truncate" 
               title={torrent.name}
             >
               {cleanTitle}
@@ -259,14 +249,29 @@ export default function TorrentCard({
           </div>
         </div>
 
-        {/* Speed Sparkline & Delete */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Speed Sparkline, Pause & Delete */}
+        <div className="flex items-center gap-2 shrink-0">
           <SpeedSparkline currentSpeed={torrent.downloadSpeed} isCompleted={isCompleted} />
           
+          {!isCompleted && (
+            <button
+              type="button"
+              onClick={handleTogglePause}
+              className="btn-secondary p-2 text-[#0D0F1C]"
+              title={isPaused ? "Resume transfer" : "Pause transfer"}
+            >
+              {isPaused ? (
+                <Play className="w-4 h-4 fill-current text-[#0066FF]" />
+              ) : (
+                <Pause className="w-4 h-4 text-[#646E82]" />
+              )}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => onDeleteTorrent(torrent.infoHash, torrent.name)}
-            className="p-2 rounded-xl bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 transition-all shadow-2xs"
+            className="btn-secondary p-2 text-[#646E82] hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200"
             title="Delete transfer from disk"
           >
             <Trash2 className="w-4 h-4" />
@@ -275,17 +280,17 @@ export default function TorrentCard({
       </div>
 
       {/* Primary Video Action Bar */}
-      <div className="mb-4 bg-slate-50/80 border border-slate-200/80 rounded-xl p-3 sm:p-3.5 flex items-center justify-between flex-wrap gap-2.5">
+      <div className="mb-4 bg-[#F8FAFC] border border-[#E0E4EC] rounded-xl p-3 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
-          {/* 1-Click Stream in VLC / Cinema Player */}
+          {/* 1-Click Stream in VLC */}
           <button
             type="button"
             onClick={() => onOpenStream(torrent, primaryVideo)}
-            className="btn-primary px-4 py-2 text-xs sm:text-sm flex items-center gap-2 shadow-xs"
+            className="btn-primary px-4 py-2 text-xs flex items-center gap-1.5"
             title="Play movie immediately or stream via VLC / PotPlayer"
           >
-            <Tv className="w-4 h-4 text-white" />
-            <span>Play Movie Now</span>
+            <Tv className="w-3.5 h-3.5 text-white" />
+            <span>[ PLAY MOVIE ]</span>
           </button>
 
           {/* 6-Stream Turbo Download */}
@@ -293,134 +298,120 @@ export default function TorrentCard({
             type="button"
             onClick={startTurboDownload}
             disabled={turboActive}
-            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-2 shadow-xs transition-all disabled:opacity-50"
+            className="btn-secondary px-3.5 py-2 text-xs flex items-center gap-1.5"
             title="High-speed multi-threaded download (6 parallel streams in browser)"
           >
             {turboActive ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin text-white" />
-                <span>Turbo ({turboProgress}%)</span>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0066FF]" />
+                <span className="text-[#0066FF]">[ TURBO: {turboProgress}% ]</span>
               </>
             ) : (
               <>
-                <Zap className="w-4 h-4 fill-white text-white" />
-                <span>⚡ Turbo Download</span>
+                <Zap className="w-3.5 h-3.5 fill-[#0066FF] text-[#0066FF]" />
+                <span>[ ⚡ TURBO DL ]</span>
               </>
             )}
           </button>
 
-          {/* Direct Stream Download */}
+          {/* Standard Direct Download (IDM Ready) */}
           <a
             href={directDownloadUrl}
             download
-            className="btn-secondary px-3 py-2 text-xs font-semibold flex items-center gap-1.5 text-slate-700"
-            title="Direct single-stream HTTP download"
+            className="btn-secondary px-3.5 py-2 text-xs flex items-center gap-1.5"
+            title="Standard direct download file (browser/IDM download manager)"
           >
-            <Download className="w-3.5 h-3.5 text-blue-600" />
-            <span>Direct DL {isCompleted ? '' : `(${pct}%)`}</span>
+            <Download className="w-3.5 h-3.5 text-[#646E82]" />
+            <span>[ DIRECT DL ]</span>
           </a>
 
-          {/* IDM Link Copy */}
+          {/* Quick Copy Link for IDM */}
           <button
             type="button"
             onClick={copyIdmLink}
-            className="btn-secondary px-3 py-2 text-xs font-semibold flex items-center gap-1.5 text-slate-700"
-            title="Copy download link for IDM, FDM, or Aria2"
+            className="btn-secondary px-2.5 py-2 text-xs"
+            title="Copy HTTP 206 URL for IDM / aria2 / curl"
           >
-            <Copy className="w-3.5 h-3.5 text-slate-500" />
-            <span>IDM Link</span>
+            <Copy className="w-3.5 h-3.5 text-[#646E82]" />
           </button>
 
-          {/* 1-Click VLC M3U Playlist */}
+          {/* Quick .M3U */}
           <a
             href={playlistUrl}
             download
-            className="btn-secondary px-2.5 py-2 text-xs font-mono text-slate-600 hidden md:flex items-center gap-1"
-            title="Download .m3u playlist file for instant VLC streaming"
+            className="btn-secondary px-2.5 py-2 text-xs text-[11px] font-bold"
+            title="Download .m3u playlist for external player"
           >
-            <Play className="w-3 h-3 text-blue-600 fill-blue-600" />
-            <span>.m3u</span>
+            .m3u
           </a>
         </div>
 
-        {/* Explore Files Drawer Toggle */}
+        {/* Expand Files Button */}
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="btn-secondary px-3 py-2 text-xs font-semibold text-slate-700 flex items-center gap-1.5 ml-auto"
+          className="btn-secondary px-3 py-2 text-xs flex items-center gap-1 ml-auto"
         >
-          <Layers className="w-3.5 h-3.5 text-slate-500" />
-          <span>{expanded ? 'Hide Files' : `Files (${files.length || '...'})`}</span>
+          <span>[ FILES ({files.length || torrent.files?.length || 0}) ]</span>
           {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
       </div>
 
-      {/* Turbo Active Banner */}
-      {turboActive && (
-        <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 space-y-2 animate-in fade-in">
-          <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
-            <span className="flex items-center gap-1.5">
-              <Zap className="w-4 h-4 text-emerald-600 fill-emerald-600 animate-pulse" />
-              <span>Multi-Threaded Turbo Download Active (6 Parallel Streams)</span>
-            </span>
-            <span className="mono-stat text-emerald-700 font-bold">{turboSpeed || 'Pipelining...'} • {turboProgress}%</span>
-          </div>
-          <div className="w-full h-2 bg-emerald-100 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-emerald-600 transition-all duration-200"
-              style={{ width: `${turboProgress}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Progress Track & Live Speed Data in Tabular Mono */}
+      {/* Progress Bar & Numerical Metrics */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between text-xs mono-stat">
-          <div className="flex items-center gap-4 text-slate-600">
-            {/* Download speed */}
-            <span className="flex items-center gap-1.5 text-blue-600 font-bold">
-              <ArrowDownCircle className="w-3.5 h-3.5 text-blue-600" />
-              {formatSpeed(torrent.downloadSpeed)}
-            </span>
-            {/* Upload speed */}
-            <span className="flex items-center gap-1.5 text-slate-500 font-medium hidden sm:flex">
-              <ArrowUpCircle className="w-3.5 h-3.5 text-slate-400" />
-              {formatSpeed(torrent.uploadSpeed)}
-            </span>
-            {/* ETA */}
-            {!isCompleted && torrent.timeRemaining > 0 && (
-              <span className="flex items-center gap-1.5 text-slate-500 hidden md:flex font-medium">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                ETA: {formatDuration(torrent.timeRemaining / 1000)}
-              </span>
-            )}
-          </div>
-
-          <div className="font-semibold text-slate-700">
-            {formatBytes(torrent.downloaded || 0)} <span className="text-slate-400">/</span> {formatBytes(torrent.total || 0)} <span className="text-blue-600 font-bold">({pct}%)</span>
-          </div>
-        </div>
-
-        {/* Clean Progress Bar */}
-        <div className="relative w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
+        {/* Progress Bar */}
+        <div className="h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60 p-[1px]">
           <div 
             className={`h-full rounded-full transition-all duration-300 ${
               isCompleted 
                 ? 'bg-emerald-500' 
-                : 'bg-blue-600'
+                : 'bg-[#0066FF]'
             }`}
-            style={{ width: `${Math.max(pct, 1)}%` }}
+            style={{ width: `${pct}%` }}
           />
+        </div>
+
+        {/* Metrics Row */}
+        <div className="flex items-center justify-between text-xs text-[#646E82] pt-1 flex-wrap gap-2 mono-stat">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1 text-[#059669] font-bold">
+              <span>↓</span>
+              <span>{formatSpeed(torrent.downloadSpeed || 0)}</span>
+            </span>
+
+            <span>•</span>
+
+            <span className="flex items-center gap-1 text-[#646E82]">
+              <span>↑</span>
+              <span>{formatSpeed(torrent.uploadSpeed || 0)}</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {!isCompleted && torrent.timeRemaining ? (
+              <span className="flex items-center gap-1 text-[#646E82]">
+                <Clock className="w-3 h-3" />
+                <span>ETA: {formatDuration(torrent.timeRemaining)}</span>
+              </span>
+            ) : null}
+
+            <span>•</span>
+
+            <span className="flex items-center gap-1 font-bold text-[#0D0F1C]">
+              <span>{formatBytes(torrent.downloaded || 0)}</span>
+              <span>/</span>
+              <span>{formatBytes(torrent.total || 0)}</span>
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Expanded File Explorer */}
+      {/* Expandable File Tree Component */}
       {expanded && (
         <FileTree
           torrent={torrent}
           files={files}
-          onStreamFile={(t, f) => onOpenStream(t, f)}
+          onStreamFile={onOpenStream}
           onExtractSingle={onExtractArchive}
           onShowToast={onShowToast}
         />

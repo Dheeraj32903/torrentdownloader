@@ -234,8 +234,11 @@ export function generateAria2InputFile(hostUrl, infoHash, files) {
   return content;
 }
 
+let cachedUsedInDownloads = 0;
+let lastUsedCheckTime = 0;
+
 /**
- * Gets disk usage stats and checks quota
+ * Gets disk usage stats and checks quota with a 10s non-blocking cache
  */
 export function getDiskStats(downloadDir) {
   let diskFree = 0;
@@ -247,27 +250,34 @@ export function getDiskStats(downloadDir) {
     diskTotal = stat.blocks * stat.bsize;
   } catch {}
 
-  let usedInDownloads = 0;
-  function calculateDirSize(dir) {
-    if (!fs.existsSync(dir)) return;
-    try {
-      const list = fs.readdirSync(dir, { withFileTypes: true });
-      for (const item of list) {
-        const full = path.join(dir, item.name);
-        if (item.isDirectory()) {
-          calculateDirSize(full);
-        } else {
-          try {
-            usedInDownloads += fs.statSync(full).size;
-          } catch {}
+  const now = Date.now();
+  if (now - lastUsedCheckTime > 10000) {
+    let used = 0;
+    function calculateDirSize(dir) {
+      if (!fs.existsSync(dir)) return;
+      try {
+        const list = fs.readdirSync(dir, { withFileTypes: true });
+        for (const item of list) {
+          const full = path.join(dir, item.name);
+          if (item.isDirectory()) {
+            calculateDirSize(full);
+          } else {
+            try {
+              used += fs.statSync(full).size;
+            } catch {}
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
+
+    if (fs.existsSync(downloadDir)) {
+      calculateDirSize(downloadDir);
+    }
+    cachedUsedInDownloads = used;
+    lastUsedCheckTime = now;
   }
 
-  if (fs.existsSync(downloadDir)) {
-    calculateDirSize(downloadDir);
-  }
+  const usedInDownloads = cachedUsedInDownloads;
 
   return {
     diskFree,

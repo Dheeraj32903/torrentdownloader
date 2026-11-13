@@ -254,7 +254,7 @@ export default function App() {
   const completedCount = torrents.length - activeCount;
 
   return (
-    <div className="min-h-screen flex flex-col selection:bg-blue-100 selection:text-blue-900 pb-12">
+    <div className="min-h-screen flex flex-col selection:bg-[#0066FF] selection:text-white pb-12 font-mono">
       {/* Top Floating White Navbar */}
       <Navbar
         connected={connected}
@@ -277,9 +277,9 @@ export default function App() {
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
-              <h2 className="text-xl sm:text-2xl font-display font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#0D0F1C] tracking-tight flex items-center gap-2.5">
                 <span>Active Transfers</span>
-                <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-50 text-blue-700 border border-blue-200 mono-stat">
+                <span className="px-2.5 py-0.5 text-xs font-bold rounded-md bg-[#EBF2FF] text-[#0066FF] border border-[#B8D0FF] mono-stat">
                   {torrents.length}
                 </span>
               </h2>
@@ -289,23 +289,23 @@ export default function App() {
             <div className="flex items-center gap-2.5 flex-wrap">
               {/* Search Bar */}
               <div className="relative flex items-center">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
+                <Search className="w-3.5 h-3.5 text-[#8F9CAE] absolute left-3 pointer-events-none" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Filter transfers..."
-                  className="ui-input text-xs sm:text-sm text-slate-800 placeholder-slate-400 pl-9 pr-3.5 py-1.5 w-40 sm:w-52"
+                  className="ui-input text-xs sm:text-sm text-[#0D0F1C] placeholder-[#8F9CAE] pl-9 pr-3.5 py-2 w-40 sm:w-56 font-mono"
                 />
               </div>
 
               {/* Sort Selector */}
-              <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs shadow-2xs">
-                <ArrowDownUp className="w-3.5 h-3.5 text-blue-600" />
+              <div className="flex items-center gap-1.5 bg-white border border-[#E0E4EC] px-3 py-2 rounded-xl text-xs shadow-xs">
+                <ArrowDownUp className="w-3.5 h-3.5 text-[#0066FF]" />
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-transparent text-slate-700 font-semibold focus:outline-none text-xs cursor-pointer"
+                  className="bg-transparent text-[#0D0F1C] font-semibold focus:outline-none text-xs cursor-pointer font-mono"
                 >
                   <option value="date">Latest</option>
                   <option value="speed">Fastest Speed</option>
@@ -314,40 +314,40 @@ export default function App() {
                 </select>
               </div>
 
-              {/* Status Filters - Product UI Styleguide Tabs */}
-              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/90 text-xs font-semibold">
+              {/* Status Filters - Bracketed Monospace Tabs */}
+              <div className="flex bg-[#E0E4EC]/60 p-1 rounded-xl border border-[#E0E4EC] text-xs font-bold">
                 <button
                   type="button"
                   onClick={() => setFilter('all')}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
                     filter === 'all'
-                      ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'btn-primary text-xs shadow-xs'
+                      : 'text-[#646E82] hover:text-[#0D0F1C]'
                   }`}
                 >
-                  All ({torrents.length})
+                  [ ALL ({torrents.length}) ]
                 </button>
                 <button
                   type="button"
                   onClick={() => setFilter('active')}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
                     filter === 'active'
-                      ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'btn-primary text-xs shadow-xs'
+                      : 'text-[#646E82] hover:text-[#0D0F1C]'
                   }`}
                 >
-                  Extracting ({activeCount})
+                  [ EXTRACTING ({activeCount}) ]
                 </button>
                 <button
                   type="button"
                   onClick={() => setFilter('completed')}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
                     filter === 'completed'
-                      ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'btn-primary text-xs shadow-xs'
+                      : 'text-[#646E82] hover:text-[#0D0F1C]'
                   }`}
                 >
-                  Ready ({completedCount})
+                  [ READY ({completedCount}) ]
                 </button>
               </div>
             </div>
@@ -370,12 +370,12 @@ export default function App() {
           ) : (
             /* Empty State */
             <div className="ui-card p-12 text-center max-w-lg mx-auto space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 mx-auto">
+              <div className="w-16 h-16 rounded-2xl bg-[#EBF2FF] border border-[#B8D0FF] flex items-center justify-center text-[#0066FF] mx-auto shadow-xs">
                 <FolderDown className="w-8 h-8" />
               </div>
               <div className="space-y-1.5">
-                <h3 className="text-lg font-bold text-slate-900">No active transfers</h3>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                <h3 className="text-lg font-bold text-[#0D0F1C]">No active transfers</h3>
+                <p className="text-xs text-[#646E82] max-w-sm mx-auto leading-relaxed">
                   Paste any magnet link or drop a .torrent above to extract files, watch movies instantly in VLC, and generate gigabit direct download links.
                 </p>
               </div>

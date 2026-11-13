@@ -28,7 +28,7 @@ export class TorrentManager {
 
   initClient() {
     this.client = new WebTorrent({
-      maxConns: 1000,
+      maxConns: 250, // Optimal peer connections per swarm without router NAT congestion
       dht: {
         bootstrap: [
           'router.bittorrent.com:6881',
@@ -301,6 +301,7 @@ export class TorrentManager {
       if (torrent.files && torrent.files.length > 0) {
         meta.files = torrent.files.map((f, idx) => {
           const cat = getFileCategory(f.name);
+          const isSample = /sample/i.test(f.name) && f.length < 75 * 1024 * 1024;
           return {
             index: idx,
             name: f.name,
@@ -312,13 +313,24 @@ export class TorrentManager {
             isArchive: !!isArchive(f.name),
             isStreamable: cat === 'video' || cat === 'audio',
             progress: f.progress,
-            selected: meta.selectedIndices ? meta.selectedIndices.includes(idx) : true
+            selected: meta.selectedIndices ? meta.selectedIndices.includes(idx) : !isSample
           };
         });
 
-        // Apply selections if saved
+        // Apply selections if saved, otherwise apply defaults (suppress junk samples)
         if (meta.selectedIndices) {
           this.applyFileSelections(torrent, meta.selectedIndices);
+        } else {
+          const activeIndices = meta.files.filter(f => f.selected).map(f => f.index);
+          this.applyFileSelections(torrent, activeIndices);
+        }
+
+        // Auto-prioritize container header pieces for the primary video file
+        const videoFiles = torrent.files.filter(f => /\.(mp4|mkv|webm|avi|mov)$/i.test(f.name));
+        if (videoFiles.length > 0) {
+          const largestVideo = videoFiles.reduce((prev, curr) => (curr.length > prev.length ? curr : prev));
+          prioritizeStreamPieces(torrent, largestVideo, 0);
+          console.log(`[TorrentManager] Auto-prioritized streaming header pieces for primary video: ${largestVideo.name}`);
         }
       }
 
@@ -492,7 +504,7 @@ export class TorrentManager {
   }
 
   /**
-   * Deletes a torrent and optionally removes files
+   * Deletes a torrent and optionally removes files with robust Windows file-lock retry
    */
   async deleteTorrent(infoHash, deleteFiles = false) {
     const meta = this.torrentsMap.get(infoHash);
@@ -507,24 +519,33 @@ export class TorrentManager {
     }
 
     if (deleteFiles && meta) {
+      const waitDelay = (ms) => new Promise(r => setTimeout(r, ms));
+      
+      const safeRm = async (p) => {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            if (fs.existsSync(p)) {
+              fs.rmSync(p, { recursive: true, force: true });
+            }
+            return;
+          } catch (e) {
+            if (attempt < 2 && (e.code === 'EBUSY' || e.code === 'EPERM')) {
+              await waitDelay(250 * (attempt + 1));
+            } else {
+              console.warn(`[TorrentManager] Delete file warning (${p}):`, e.message);
+            }
+          }
+        }
+      };
+
       // 1. Delete standard folder or file path
       const torrentPath = path.join(this.downloadDir, meta.name || infoHash);
-      if (fs.existsSync(torrentPath)) {
-        try {
-          fs.rmSync(torrentPath, { recursive: true, force: true });
-          console.log(`[TorrentManager] Deleted files at: ${torrentPath}`);
-        } catch (err) {
-          console.warn(`[TorrentManager] Error deleting files: ${err.message}`);
-        }
-      }
+      await safeRm(torrentPath);
 
       // 2. Delete any extracted archives/folders
       if (meta.extractedFiles && Array.isArray(meta.extractedFiles)) {
         for (const ext of meta.extractedFiles) {
-          const extPath = path.join(this.downloadDir, ext);
-          if (fs.existsSync(extPath)) {
-            try { fs.rmSync(extPath, { recursive: true, force: true }); } catch {}
-          }
+          await safeRm(path.join(this.downloadDir, ext));
         }
       }
     }
@@ -533,6 +554,104 @@ export class TorrentManager {
     this.saveState();
     this.notifyUpdate();
     return true;
+  }
+
+  /**
+   * Pauses an active torrent transfer
+   */
+  pauseTorrent(infoHash) {
+    const meta = this.torrentsMap.get(infoHash);
+    if (!meta) return { success: false, message: 'Torrent not found' };
+
+    const activeTorrent = this.getActiveTorrent(infoHash);
+    if (activeTorrent) {
+      try {
+        if (typeof activeTorrent.pause === 'function') {
+          activeTorrent.pause();
+        } else {
+          activeTorrent.deselect(0, activeTorrent.pieces.length - 1, 0);
+        }
+      } catch (e) {
+        console.warn('[TorrentManager] Pause warning:', e.message);
+      }
+    }
+
+    meta.status = 'paused';
+    meta.downloadSpeed = 0;
+    meta.uploadSpeed = 0;
+    this.saveState();
+    this.notifyUpdate();
+    return { success: true, message: 'Transfer paused' };
+  }
+
+  /**
+   * Resumes a paused torrent transfer
+   */
+  resumeTorrent(infoHash) {
+    const meta = this.torrentsMap.get(infoHash);
+    if (!meta) return { success: false, message: 'Torrent not found' };
+
+    const activeTorrent = this.getActiveTorrent(infoHash);
+    if (activeTorrent) {
+      try {
+        if (typeof activeTorrent.resume === 'function') {
+          activeTorrent.resume();
+        } else {
+          activeTorrent.select(0, activeTorrent.pieces.length - 1, 1);
+        }
+      } catch (e) {
+        console.warn('[TorrentManager] Resume warning:', e.message);
+      }
+    } else if (meta.magnetURI) {
+      try {
+        const torrent = this.client.add(meta.magnetURI, {
+          path: this.downloadDir,
+          destroyStoreOnDestroy: false,
+          announce: getCachedTrackers(),
+          maxWebConns: 16
+        });
+        this.hookTorrentEvents(torrent, infoHash, meta);
+      } catch (e) {
+        console.warn('[TorrentManager] Could not re-add torrent on resume:', e.message);
+      }
+    }
+
+    meta.status = meta.progress >= 1 ? 'completed' : 'downloading';
+    this.saveState();
+    this.notifyUpdate();
+    return { success: true, message: 'Transfer resumed' };
+  }
+
+  /**
+   * Returns live structured peer details (IP, Client, Speed, Uploaded/Downloaded)
+   */
+  getTorrentPeers(infoHash) {
+    const activeTorrent = this.getActiveTorrent(infoHash);
+    if (!activeTorrent || !activeTorrent.wires) return [];
+
+    return activeTorrent.wires.map(wire => {
+      let clientName = 'BitTorrent Peer';
+      try {
+        if (wire.peerExtendedHandshake?.v) {
+          clientName = wire.peerExtendedHandshake.v;
+        }
+      } catch {}
+
+      const downSpd = typeof wire.downloadSpeed === 'function' ? wire.downloadSpeed() : 0;
+      const upSpd = typeof wire.uploadSpeed === 'function' ? wire.uploadSpeed() : 0;
+
+      return {
+        ip: wire.remoteAddress || 'Unknown',
+        port: wire.remotePort || 0,
+        client: clientName,
+        downloadSpeed: downSpd,
+        downloadSpeedFormatted: formatBytes(downSpd) + '/s',
+        uploadSpeed: upSpd,
+        uploadSpeedFormatted: formatBytes(upSpd) + '/s',
+        downloaded: wire.downloaded || 0,
+        downloadedFormatted: formatBytes(wire.downloaded || 0)
+      };
+    });
   }
 
   /**
