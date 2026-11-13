@@ -254,8 +254,8 @@ export default function App() {
   const completedCount = torrents.length - activeCount;
 
   return (
-    <div className="min-h-screen flex flex-col selection:bg-emerald-500/30 selection:text-emerald-200">
-      {/* Top Floating Bento Navbar */}
+    <div className="min-h-screen flex flex-col selection:bg-blue-100 selection:text-blue-900 pb-12">
+      {/* Top Floating White Navbar */}
       <Navbar
         connected={connected}
         speeds={speeds}
@@ -265,7 +265,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-[1200px] w-full mx-auto px-4 py-8 sm:py-12 space-y-8">
+      <main className="flex-1 max-w-[1200px] w-full mx-auto px-4 py-8 sm:py-10 space-y-8">
         {/* Command Bar Hero Input */}
         <HeroInput
           onAddMagnet={handleAddMagnet}
@@ -273,56 +273,56 @@ export default function App() {
           isLoading={loading}
         />
 
-        {/* Section Header & Bento Filters */}
+        {/* Section Header & Tabs */}
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
-              <h2 className="text-xl sm:text-2xl font-display font-bold text-white tracking-tight flex items-center gap-2.5">
+              <h2 className="text-xl sm:text-2xl font-display font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
                 <span>Active Transfers</span>
-                <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 mono-stat">
+                <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-50 text-blue-700 border border-blue-200 mono-stat">
                   {torrents.length}
                 </span>
               </h2>
             </div>
 
-            {/* Controls: Search, Sort & Filter Tabs */}
+            {/* Controls: Search, Sort & Tabs */}
             <div className="flex items-center gap-2.5 flex-wrap">
               {/* Search Bar */}
               <div className="relative flex items-center">
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 pointer-events-none" />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Filter transfers..."
-                  className="bg-black/40 border border-white/[0.08] text-xs sm:text-sm text-white placeholder-slate-500 pl-9 pr-3.5 py-1.5 rounded-xl focus:outline-none focus:border-emerald-500/50 w-40 sm:w-52 font-mono transition-all"
+                  className="ui-input text-xs sm:text-sm text-slate-800 placeholder-slate-400 pl-9 pr-3.5 py-1.5 w-40 sm:w-52"
                 />
               </div>
 
               {/* Sort Selector */}
-              <div className="flex items-center gap-1 bg-black/40 border border-white/[0.08] px-2.5 py-1.5 rounded-xl text-xs">
-                <ArrowDownUp className="w-3.5 h-3.5 text-cyan-400" />
+              <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs shadow-2xs">
+                <ArrowDownUp className="w-3.5 h-3.5 text-blue-600" />
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-transparent text-slate-300 font-semibold focus:outline-none text-xs cursor-pointer"
+                  className="bg-transparent text-slate-700 font-semibold focus:outline-none text-xs cursor-pointer"
                 >
-                  <option value="date" className="bg-[#0e111a] text-white">Latest</option>
-                  <option value="speed" className="bg-[#0e111a] text-white">Fastest Speed</option>
-                  <option value="size" className="bg-[#0e111a] text-white">Largest Size</option>
-                  <option value="progress" className="bg-[#0e111a] text-white">Progress</option>
+                  <option value="date">Latest</option>
+                  <option value="speed">Fastest Speed</option>
+                  <option value="size">Largest Size</option>
+                  <option value="progress">Progress</option>
                 </select>
               </div>
 
-              {/* Status Filters */}
-              <div className="flex bg-black/40 p-1 rounded-xl border border-white/[0.08] text-xs font-semibold">
+              {/* Status Filters - Product UI Styleguide Tabs */}
+              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/90 text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => setFilter('all')}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
                     filter === 'all'
-                      ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold shadow-sm shadow-emerald-500/30'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   All ({torrents.length})
@@ -332,8 +332,8 @@ export default function App() {
                   onClick={() => setFilter('active')}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
                     filter === 'active'
-                      ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold shadow-sm shadow-emerald-500/30'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Extracting ({activeCount})
@@ -343,8 +343,8 @@ export default function App() {
                   onClick={() => setFilter('completed')}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
                     filter === 'completed'
-                      ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold shadow-sm shadow-emerald-500/30'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Ready ({completedCount})
@@ -369,13 +369,13 @@ export default function App() {
             </div>
           ) : (
             /* Empty State */
-            <div className="bento-card p-12 text-center max-w-lg mx-auto space-y-4">
-              <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto shadow-lg shadow-emerald-500/10">
+            <div className="ui-card p-12 text-center max-w-lg mx-auto space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 mx-auto">
                 <FolderDown className="w-8 h-8" />
               </div>
               <div className="space-y-1.5">
-                <h3 className="text-lg font-display font-bold text-white">No active transfers</h3>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                <h3 className="text-lg font-bold text-slate-900">No active transfers</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
                   Paste any magnet link or drop a .torrent above to extract files, watch movies instantly in VLC, and generate gigabit direct download links.
                 </p>
               </div>
@@ -404,7 +404,7 @@ export default function App() {
         onShowToast={showToast}
       />
 
-      {/* Floating Bento Toasts */}
+      {/* Floating Alerts matching Styleguide */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );

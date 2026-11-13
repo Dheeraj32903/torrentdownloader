@@ -8,23 +8,23 @@ export default function ToastContainer({ toasts, onDismiss }) {
     switch (type) {
       case 'success':
         return {
-          icon: <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />,
-          classes: 'border-emerald-500/30 bg-[#0e1416]/95 text-emerald-200 shadow-lg shadow-emerald-500/10'
+          icon: <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />,
+          classes: 'bg-emerald-50 border-emerald-200 text-emerald-900 shadow-sm'
         };
       case 'error':
         return {
-          icon: <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />,
-          classes: 'border-rose-500/30 bg-[#160d10]/95 text-rose-200 shadow-lg shadow-rose-500/10'
+          icon: <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />,
+          classes: 'bg-rose-50 border-rose-200 text-rose-900 shadow-sm'
         };
       case 'warning':
         return {
-          icon: <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />,
-          classes: 'border-amber-500/30 bg-[#16130d]/95 text-amber-200 shadow-lg shadow-amber-500/10'
+          icon: <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />,
+          classes: 'bg-amber-50 border-amber-200 text-amber-900 shadow-sm'
         };
       default:
         return {
-          icon: <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />,
-          classes: 'border-cyan-500/30 bg-[#0c131c]/95 text-cyan-200 shadow-lg shadow-cyan-500/10'
+          icon: <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />,
+          classes: 'bg-blue-50 border-blue-200 text-blue-900 shadow-sm'
         };
     }
   };
@@ -36,16 +36,16 @@ export default function ToastContainer({ toasts, onDismiss }) {
         return (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-2xl border backdrop-blur-2xl transition-all duration-300 animate-in slide-in-from-bottom-5 ${config.classes}`}
+            className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border backdrop-blur-md transition-all duration-300 animate-in slide-in-from-bottom-5 ${config.classes}`}
           >
             {config.icon}
-            <div className="flex-1 text-xs font-medium leading-relaxed text-slate-200">
+            <div className="flex-1 text-xs font-semibold leading-relaxed">
               {toast.message}
             </div>
             <button
               type="button"
               onClick={() => onDismiss(toast.id)}
-              className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors shrink-0"
+              className="p-1 rounded-lg hover:bg-black/5 text-slate-500 hover:text-slate-800 transition-colors shrink-0"
               title="Dismiss notification"
             >
               <X className="w-3.5 h-3.5" />

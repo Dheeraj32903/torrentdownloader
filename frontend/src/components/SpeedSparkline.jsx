@@ -22,15 +22,14 @@ export default function SpeedSparkline({ currentSpeed, isCompleted }) {
 
     const maxVal = Math.max(...history, 1024 * 1024); // at least 1MB scale
 
-    // Build neon obsidian gradient
+    // Build soft light-mode gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
     if (isCompleted) {
-      gradient.addColorStop(0, 'rgba(16, 185, 129, 0.4)');
+      gradient.addColorStop(0, 'rgba(16, 185, 129, 0.2)');
       gradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
     } else {
-      gradient.addColorStop(0, 'rgba(6, 182, 212, 0.35)');
-      gradient.addColorStop(0.5, 'rgba(99, 102, 241, 0.15)');
-      gradient.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
+      gradient.addColorStop(0, 'rgba(13, 80, 224, 0.16)');
+      gradient.addColorStop(1, 'rgba(13, 80, 224, 0.0)');
     }
 
     ctx.beginPath();
@@ -52,11 +51,9 @@ export default function SpeedSparkline({ currentSpeed, isCompleted }) {
       }
     });
 
-    // Stroke line with neon glow
-    ctx.strokeStyle = isCompleted ? '#10b981' : '#06b6d4';
+    // Stroke line with royal blue / emerald
+    ctx.strokeStyle = isCompleted ? '#059669' : '#0d50e0';
     ctx.lineWidth = 2;
-    ctx.shadowColor = isCompleted ? 'rgba(16, 185, 129, 0.6)' : 'rgba(6, 182, 212, 0.6)';
-    ctx.shadowBlur = 6;
     ctx.stroke();
 
     // Fill area below line
@@ -64,7 +61,6 @@ export default function SpeedSparkline({ currentSpeed, isCompleted }) {
     ctx.lineTo(0, height);
     ctx.closePath();
     ctx.fillStyle = gradient;
-    ctx.shadowBlur = 0;
     ctx.fill();
   }, [currentSpeed, isCompleted]);
 
