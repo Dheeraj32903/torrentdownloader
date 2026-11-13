@@ -282,8 +282,8 @@ app.get('/api/torrents/:hash/aria2', (req, res) => {
   res.send(content);
 });
 
-// Stream Video / Audio with HTTP 206 Partial Content (Disk + Live WebTorrent Pieces)
-app.get('/api/stream/:hash', (req, res) => {
+// Stream Video / Audio with HTTP 206 Partial Content (WebTorrent Swarm + Disk Cache)
+app.get('/api/stream/:hash', async (req, res) => {
   const { hash } = req.params;
   const relPath = req.query.file;
   if (!relPath) return res.status(400).json({ error: 'Query param "file" is required' });
@@ -293,10 +293,48 @@ app.get('/api/stream/:hash', (req, res) => {
     return res.status(404).json({ error: 'Torrent not found' });
   }
 
-  // Prioritize piece download if it is actively downloading
-  torrentManager.prioritizeForStreaming(hash, relPath);
+  // Parse byte offset if range header is present
+  let seekByte = 0;
+  if (req.headers.range) {
+    const parts = req.headers.range.replace(/bytes=/, '').split('-');
+    seekByte = parseInt(parts[0], 10) || 0;
+  }
 
-  // 1. Check if file is available on disk
+  const activeTorrent = torrentManager.getActiveTorrent(hash);
+
+  // If active torrent is still discovering peers & resolving metadata, wait up to 12s for handshake
+  if (activeTorrent && (!activeTorrent.files || activeTorrent.files.length === 0)) {
+    console.log(`[Stream] Waiting for swarm metadata for ${meta.name || hash}...`);
+    await new Promise((resolve) => {
+      const onMeta = () => { cleanup(); resolve(true); };
+      const timer = setTimeout(() => { cleanup(); resolve(false); }, 12000);
+      const cleanup = () => {
+        clearTimeout(timer);
+        activeTorrent.off('metadata', onMeta);
+      };
+      activeTorrent.once('metadata', onMeta);
+    });
+  }
+
+  const isComplete = meta.status === 'completed' || (activeTorrent && activeTorrent.done);
+
+  // 1. If torrent is actively downloading in WebTorrent swarm:
+  // MUST stream through WebTorrent so pieces at seek location are downloaded on-demand from peers!
+  if (!isComplete && activeTorrent && activeTorrent.files && activeTorrent.files.length > 0) {
+    const norm = relPath.replace(/\\/g, '/');
+    const file = activeTorrent.files.find(f => 
+      f.path.replace(/\\/g, '/') === norm ||
+      f.name === path.basename(norm) ||
+      norm.endsWith(f.name)
+    );
+
+    if (file) {
+      torrentManager.prioritizeForStreaming(hash, file.path, seekByte);
+      return handleWebTorrentStream(req, res, file, activeTorrent);
+    }
+  }
+
+  // 2. If completed or extracted file on disk:
   const targetFile = resolveFilePath(DOWNLOADS_DIR, meta, relPath);
   if (targetFile && fs.existsSync(targetFile) && fs.statSync(targetFile).size > 0) {
     if (req.query.remux === 'true') {
@@ -305,16 +343,25 @@ app.get('/api/stream/:hash', (req, res) => {
     return handleMediaStream(req, res, targetFile);
   }
 
-  // 2. If not on disk yet or actively downloading, stream live from WebTorrent pieces
-  const activeTorrent = torrentManager.getActiveTorrent(hash);
+  // 3. Fallback: stream through active swarm if file exists
   if (activeTorrent && activeTorrent.files && activeTorrent.files.length > 0) {
+    const norm = relPath.replace(/\\/g, '/');
     const file = activeTorrent.files.find(f => 
-      f.path.replace(/\\/g, '/') === relPath.replace(/\\/g, '/') ||
-      f.name === path.basename(relPath)
+      f.path.replace(/\\/g, '/') === norm ||
+      f.name === path.basename(norm)
     );
     if (file) {
-      return handleWebTorrentStream(req, res, file);
+      torrentManager.prioritizeForStreaming(hash, file.path, seekByte);
+      return handleWebTorrentStream(req, res, file, activeTorrent);
     }
+  }
+
+  // If still resolving metadata from swarm
+  if (activeTorrent && (!activeTorrent.files || activeTorrent.files.length === 0)) {
+    return res.status(503).json({
+      error: 'Connecting to swarm peers to fetch metadata... Please wait a few moments and try again.',
+      retryAfter: 5
+    });
   }
 
   return res.status(404).json({ error: 'File not found on disk or in active stream' });

@@ -408,9 +408,9 @@ export class TorrentManager {
 
   /**
    * Prioritizes pieces of a specific file for streaming while downloading,
-   * including critical container headers and index cues.
+   * including critical container headers, index cues, and dynamic seek offsets.
    */
-  prioritizeForStreaming(infoHash, filePath) {
+  prioritizeForStreaming(infoHash, filePath, byteStart = 0) {
     const torrent = this.getActiveTorrent(infoHash);
     if (!torrent || !torrent.files) return null;
 
@@ -419,8 +419,7 @@ export class TorrentManager {
 
     if (file) {
       file.select();
-      prioritizeStreamPieces(torrent, file);
-      console.log(`[TorrentManager] Prioritizing pieces for instant stream: ${file.name}`);
+      prioritizeStreamPieces(torrent, file, byteStart);
       return file;
     }
     return null;
@@ -527,11 +526,12 @@ export class TorrentManager {
         downloaded = activeTorrent.downloaded;
       }
 
-      // Check if downloaded files or extracted files exist on disk
+      // Check if downloaded files or extracted files exist on disk (only when complete)
       const torrentFolder = path.join(this.downloadDir, meta.name || hash);
       let foundOnDisk = false;
+      const isFullyCompleted = meta.status === 'completed' || (activeTorrent && activeTorrent.done);
 
-      if (fs.existsSync(torrentFolder)) {
+      if (isFullyCompleted && fs.existsSync(torrentFolder)) {
         const diskFiles = listDirectoryContents(torrentFolder, torrentFolder);
         if (diskFiles.length > 0) {
           foundOnDisk = true;

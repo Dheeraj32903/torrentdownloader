@@ -111,11 +111,18 @@ class MagnetXApp {
       try {
         this.plyr = new Plyr(this.playerVideo, {
           controls: [
-            'play-large', 'play', 'progress', 'current-time', 'duration',
+            'play-large', 'restart', 'rewind', 'play', 'fast-forward', 'progress', 'current-time', 'duration',
             'mute', 'volume', 'captions', 'settings', 'pip', 'fullscreen'
           ],
+          seekTime: 10,
           settings: ['captions', 'quality', 'speed'],
           speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] }
+        });
+
+        // Codec error detection helper
+        this.playerVideo.addEventListener('error', (e) => {
+          console.warn('[Player] Video element error:', e);
+          this.showToast('Playback hint: If audio is silent or unsupported (Dolby AC3/EAC3), click "Fix Audio (AAC)" or use "Copy VLC Stream Link"!', 'info');
         });
       } catch (e) {
         console.warn('Plyr initialization fallback:', e);
@@ -692,6 +699,9 @@ class MagnetXApp {
                 <button class="btn-subtle btn-sm btn-stream-file" data-url="${streamUrl}" data-name="${this.escapeHtml(f.name)}" data-path="${this.escapeHtml(f.path)}" data-hash="${t.infoHash}" title="Stream video/audio directly in browser">
                   ▶ Stream
                 </button>
+                <button class="btn-subtle btn-sm btn-copy-vlc-link" data-url="${location.origin}${streamUrl}" title="Copy direct stream URL for VLC, PotPlayer, or MPV (instant playback & 5.1 sound)">
+                  ⚡ VLC
+                </button>
               ` : ''}
 
               ${isArch ? `
@@ -864,6 +874,16 @@ class MagnetXApp {
         const url = btn.getAttribute('data-url');
         navigator.clipboard.writeText(url).then(() => {
           this.showToast('Direct download link copied to clipboard!', 'success');
+        });
+      });
+    });
+
+    // Copy VLC stream link for single file
+    parent.querySelectorAll('.btn-copy-vlc-link').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const url = btn.getAttribute('data-url');
+        navigator.clipboard.writeText(url).then(() => {
+          this.showToast('Copied VLC Stream Link! Open VLC -> Press Ctrl+N -> Paste & Play (5.1 Dolby surround & instant seek!)', 'success');
         });
       });
     });
@@ -1058,11 +1078,15 @@ class MagnetXApp {
 
     this.modalPlayer.classList.remove('hidden');
 
+    const lower = (filePath || '').toLowerCase();
+    const isMkv = lower.endsWith('.mkv');
+    const mimeType = isMkv ? 'video/x-matroska' : 'video/mp4';
+
     if (this.plyr) {
       this.plyr.source = {
         type: 'video',
         title: title,
-        sources: [{ src: streamUrl, type: 'video/mp4' }]
+        sources: [{ src: streamUrl, type: mimeType }]
       };
       this.plyr.play().catch(() => {});
     } else {
