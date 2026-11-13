@@ -282,6 +282,39 @@ app.get('/api/torrents/:hash/aria2', (req, res) => {
   res.send(content);
 });
 
+// Stream Playlist (.m3u) for VLC, PotPlayer, MPV, IINA & Network Players
+app.get('/api/stream-playlist/:hash', (req, res) => {
+  const { hash } = req.params;
+  const relPath = req.query.file;
+  const meta = torrentManager.torrentsMap.get(hash);
+  if (!meta) return res.status(404).json({ error: 'Torrent not found' });
+
+  const hostUrl = `${req.protocol}://${req.get('host')}`;
+  let content = '#EXTM3U\n\n';
+
+  if (relPath) {
+    const fileName = path.basename(relPath);
+    const streamUrl = `${hostUrl}/api/stream/${hash}?file=${encodeURIComponent(relPath)}`;
+    content += `#EXTINF:-1,${fileName}\n${streamUrl}\n`;
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}.m3u"`);
+  } else {
+    const streamableFiles = (meta.files || []).filter(f => f.isStreamable);
+    if (streamableFiles.length > 0) {
+      for (const f of streamableFiles) {
+        const streamUrl = `${hostUrl}/api/stream/${hash}?file=${encodeURIComponent(f.path)}`;
+        content += `#EXTINF:-1,${f.name}\n${streamUrl}\n\n`;
+      }
+    } else {
+      const streamUrl = `${hostUrl}/api/stream/${hash}?file=${encodeURIComponent(meta.name)}`;
+      content += `#EXTINF:-1,${meta.name}\n${streamUrl}\n`;
+    }
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(meta.name || hash)}.m3u"`);
+  }
+
+  res.setHeader('Content-Type', 'audio/x-mpegurl; charset=utf-8');
+  res.send(content);
+});
+
 // Stream Video / Audio with HTTP 206 Partial Content (WebTorrent Swarm + Disk Cache)
 app.get('/api/stream/:hash', async (req, res) => {
   const { hash } = req.params;

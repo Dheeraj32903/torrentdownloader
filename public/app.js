@@ -1,5 +1,5 @@
 // MagnetX - Direct Torrent & Magnet File Extractor
-// Advanced Cloud Download Engine with Targeted DOM Diffing, Sparklines & Media Player
+// Purpose-built for Ultra-Fast Downloads, External Player Streaming (VLC/PotPlayer/MPV) & Archive Unpacking
 
 const DEMO_MAGNETS = {
   bigbuck: 'magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c&dn=Big+Buck+Bunny&tr=udp%3A%2F%2Fexplodie.org%3A6969&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.empire-js.us%3A1337&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=wss%3A%2F%2Ftracker.btorrent.xyz&tr=wss%3A%2F%2Ftracker.fastcast.nz&tr=wss%3A%2F%2Ftracker.openwebtorrent.com',
@@ -33,21 +33,14 @@ class MagnetXApp {
     this.searchQuery = '';
     this.ws = null;
     this.openAccordions = new Set();
-    this.speedHistories = new Map(); // hash -> array of last 60 speeds
+    this.speedHistories = new Map();
     this.diskStats = { diskFree: 0, diskFreeFormatted: '—' };
     
     // File selection modal state
     this.selectingTorrentHash = null;
     this.tempSelectedIndices = new Set();
 
-    // Media player
-    this.plyr = null;
-    this.currentPlayingHash = null;
-    this.currentPlayingFile = null;
-    this.currentStreamUrl = null;
-
     this.initElements();
-    this.initPlyr();
     this.initEvents();
     this.initWebSocket();
     this.initTheme();
@@ -76,16 +69,14 @@ class MagnetXApp {
     this.emptyStateBox = document.getElementById('empty-state');
     this.searchFilter = document.getElementById('search-filter');
 
-    // Player modal
-    this.modalPlayer = document.getElementById('modal-player');
-    this.playerTitle = document.getElementById('player-title');
-    this.playerVideo = document.getElementById('player-video');
-    this.subtitlesDropdown = document.getElementById('subtitles-dropdown');
-    this.playerCopyVlcBtn = document.getElementById('player-copy-vlc-btn');
-    this.playerRemuxBtn = document.getElementById('player-remux-btn');
-    this.playerRawStreamBtn = document.getElementById('player-raw-stream-btn');
-    this.playerDirectDownloadBtn = document.getElementById('player-direct-download-btn');
-    this.btnClosePlayer = document.getElementById('btn-close-player');
+    // External Stream Modal
+    this.modalStreamInfo = document.getElementById('modal-stream-info');
+    this.streamInfoTitle = document.getElementById('stream-info-title');
+    this.streamDirectUrl = document.getElementById('stream-direct-url');
+    this.btnModalCopyStream = document.getElementById('btn-modal-copy-stream');
+    this.btnDownloadM3u = document.getElementById('btn-download-m3u');
+    this.btnModalDirectDl = document.getElementById('btn-modal-direct-dl');
+    this.btnCloseStreamInfo = document.getElementById('btn-close-stream-info');
 
     // File selection modal
     this.modalFileSelect = document.getElementById('modal-file-select');
@@ -104,30 +95,6 @@ class MagnetXApp {
 
     // Toast stack
     this.toastStack = document.getElementById('toast-stack');
-  }
-
-  initPlyr() {
-    if (window.Plyr) {
-      try {
-        this.plyr = new Plyr(this.playerVideo, {
-          controls: [
-            'play-large', 'restart', 'rewind', 'play', 'fast-forward', 'progress', 'current-time', 'duration',
-            'mute', 'volume', 'captions', 'settings', 'pip', 'fullscreen'
-          ],
-          seekTime: 10,
-          settings: ['captions', 'quality', 'speed'],
-          speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] }
-        });
-
-        // Codec error detection helper
-        this.playerVideo.addEventListener('error', (e) => {
-          console.warn('[Player] Video element error:', e);
-          this.showToast('Playback hint: If audio is silent or unsupported (Dolby AC3/EAC3), click "Fix Audio (AAC)" or use "Copy VLC Stream Link"!', 'info');
-        });
-      } catch (e) {
-        console.warn('Plyr initialization fallback:', e);
-      }
-    }
   }
 
   initEvents() {
@@ -238,61 +205,24 @@ class MagnetXApp {
       this.fullRenderTorrents();
     });
 
-    // Player modal close
-    this.btnClosePlayer.addEventListener('click', () => this.closePlayerModal());
-    this.modalPlayer.addEventListener('click', (e) => {
-      if (e.target === this.modalPlayer) this.closePlayerModal();
-    });
-
-    // Copy VLC Stream link button
-    this.playerCopyVlcBtn.addEventListener('click', () => {
-      if (this.currentStreamUrl) {
-        const vlcUrl = `${location.origin}${this.currentStreamUrl}`;
-        navigator.clipboard.writeText(vlcUrl).then(() => {
-          this.showToast('Copied direct HTTP 206 stream URL for VLC / PotPlayer / MPV!', 'success');
-        });
-      }
-    });
-
-    // Audio Remux AAC Transcode button
-    this.playerRemuxBtn.addEventListener('click', () => {
-      if (this.currentStreamUrl) {
-        const remuxUrl = this.currentStreamUrl.includes('?') 
-          ? `${this.currentStreamUrl}&remux=true` 
-          : `${this.currentStreamUrl}?remux=true`;
-        
-        this.showToast('Transcoding audio track to AAC for in-browser playback...', 'info');
-        if (this.plyr) {
-          this.plyr.source = {
-            type: 'video',
-            sources: [{ src: remuxUrl, type: 'video/mp4' }]
-          };
-          this.plyr.play();
-        } else {
-          this.playerVideo.src = remuxUrl;
-          this.playerVideo.load();
-          this.playerVideo.play().catch(() => {});
+    // External Stream Modal controls
+    if (this.btnCloseStreamInfo) {
+      this.btnCloseStreamInfo.addEventListener('click', () => this.closeStreamModal());
+    }
+    if (this.modalStreamInfo) {
+      this.modalStreamInfo.addEventListener('click', (e) => {
+        if (e.target === this.modalStreamInfo) this.closeStreamModal();
+      });
+    }
+    if (this.btnModalCopyStream) {
+      this.btnModalCopyStream.addEventListener('click', () => {
+        if (this.streamDirectUrl.value) {
+          navigator.clipboard.writeText(this.streamDirectUrl.value).then(() => {
+            this.showToast('Copied stream URL! Paste into VLC (Ctrl+N) or PotPlayer (Ctrl+U) to play.', 'success');
+          });
         }
-      }
-    });
-
-    // Subtitle selection change
-    this.subtitlesDropdown.addEventListener('change', () => {
-      const selected = this.subtitlesDropdown.value;
-      const tracks = this.playerVideo.querySelectorAll('track');
-      tracks.forEach(t => t.remove());
-
-      if (selected !== 'none') {
-        const track = document.createElement('track');
-        track.kind = 'subtitles';
-        track.label = this.subtitlesDropdown.options[this.subtitlesDropdown.selectedIndex].text;
-        track.srclang = 'en';
-        track.src = selected;
-        track.default = true;
-        this.playerVideo.appendChild(track);
-        this.showToast(`Subtitles active: ${track.label}`, 'info');
-      }
-    });
+      });
+    }
 
     // File selection modal controls
     this.btnCloseFileSelect.addEventListener('click', () => this.closeFileSelectModal());
@@ -457,11 +387,6 @@ class MagnetXApp {
     }
   }
 
-  /**
-   * High-Performance Targeted DOM Diffing / Synchronization:
-   * Prevents layout thrashing, flickering, and accordion closures by mutating only
-   * changed properties in-place.
-   */
   syncTorrentsDOM(torrents) {
     let filtered = torrents.filter(t => {
       if (this.currentFilter === 'downloading') return t.status === 'downloading' || t.status === 'extracting';
@@ -484,7 +409,7 @@ class MagnetXApp {
 
     const incomingHashes = new Set(filtered.map(t => t.infoHash));
 
-    // 1. Remove obsolete cards
+    // Remove obsolete cards
     const existingCards = this.torrentsContainer.querySelectorAll('.torrent-block');
     existingCards.forEach(card => {
       const hash = card.getAttribute('data-hash');
@@ -494,51 +419,42 @@ class MagnetXApp {
       }
     });
 
-    // 2. Update existing cards or append new cards
+    // Update existing cards or append new cards
     filtered.forEach(t => {
       const hash = t.infoHash;
       let card = this.torrentsContainer.querySelector(`.torrent-block[data-hash="${hash}"]`);
 
       if (!card) {
-        // Create new card and append
         const temp = document.createElement('div');
         temp.innerHTML = this.createTorrentBlockHTML(t);
         card = temp.firstElementChild;
         this.torrentsContainer.appendChild(card);
         this.attachCardEventListeners(card);
       } else {
-        // Targeted in-place mutation
         this.updateCardInPlace(card, t);
       }
 
-      // Update speed sparkline history (last 60 seconds)
       this.recordSpeedAndDrawSparkline(card, t);
     });
   }
 
-  /**
-   * Mutates only dynamic elements of an existing card without rebuilding DOM
-   */
   updateCardInPlace(card, t) {
     const pct = Math.round((t.progress || 0) * 100);
     const isCompleted = t.status === 'completed';
     const isExtracting = t.isExtracting || t.status === 'extracting';
     const isDownloading = t.status === 'downloading';
 
-    // Update name if changed
     const nameEl = card.querySelector('.torrent-name');
     if (nameEl && t.name && nameEl.textContent.trim() !== t.name) {
       nameEl.textContent = t.name;
       nameEl.title = t.name;
     }
 
-    // Update progress bar
     const progressThumb = card.querySelector('.progress-thumb');
     if (progressThumb) {
       progressThumb.style.width = `${pct}%`;
     }
 
-    // Update progress summary text
     const progressInfoText = card.querySelector('.progress-info-text');
     if (progressInfoText) {
       const downloadedFormatted = formatBytes(t.downloaded || 0);
@@ -546,7 +462,6 @@ class MagnetXApp {
       progressInfoText.textContent = `${pct}% extracted (${downloadedFormatted} of ${totalFormatted})`;
     }
 
-    // Update speeds & ETA
     const speedInfo = card.querySelector('.progress-speeds');
     if (speedInfo) {
       if (isDownloading) {
@@ -558,14 +473,12 @@ class MagnetXApp {
       }
     }
 
-    // Update peers count
     const peersEl = card.querySelector('.torrent-peers-count');
     if (peersEl) {
       peersEl.textContent = `👥 ${t.numPeers || 0} peers`;
       peersEl.style.display = isDownloading ? 'inline-flex' : 'none';
     }
 
-    // Update status badge
     const badgeEl = card.querySelector('.torrent-status-badge');
     if (badgeEl) {
       if (isExtracting) {
@@ -581,9 +494,6 @@ class MagnetXApp {
     }
   }
 
-  /**
-   * Records 60s speed window and draws glowing bezier sparkline on HTML5 Canvas
-   */
   recordSpeedAndDrawSparkline(card, t) {
     const hash = t.infoHash;
     if (!this.speedHistories.has(hash)) {
@@ -603,10 +513,9 @@ class MagnetXApp {
 
     ctx.clearRect(0, 0, width, height);
 
-    const maxSpeed = Math.max(...history, 500 * 1024); // at least 500 KB scale
+    const maxSpeed = Math.max(...history, 500 * 1024);
     const step = width / (history.length - 1);
 
-    // Gradient fill under curve
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
     gradient.addColorStop(0, 'rgba(6, 182, 212, 0.35)');
     gradient.addColorStop(1, 'rgba(6, 182, 212, 0.0)');
@@ -625,7 +534,6 @@ class MagnetXApp {
     ctx.fillStyle = gradient;
     ctx.fill();
 
-    // Top stroke line
     ctx.beginPath();
     for (let i = 0; i < history.length; i++) {
       const x = i * step;
@@ -667,6 +575,8 @@ class MagnetXApp {
     const totalFormatted = formatBytes(t.total || 0);
     const downloadedFormatted = formatBytes(t.downloaded || 0);
 
+    const hasStreamable = files.some(f => f.isStreamable || /\.(mp4|mkv|webm|avi|mp3|flac)$/i.test(f.name));
+
     // Files rows HTML
     let filesRows = '';
     if (files.length > 0) {
@@ -685,6 +595,7 @@ class MagnetXApp {
 
         const downloadUrl = `/api/download/${t.infoHash}?file=${encodeURIComponent(f.path)}`;
         const streamUrl = `/api/stream/${t.infoHash}?file=${encodeURIComponent(f.path)}`;
+        const m3uUrl = `/api/stream-playlist/${t.infoHash}?file=${encodeURIComponent(f.path)}`;
 
         return `
           <div class="file-row" style="${isSelected ? '' : 'opacity: 0.45;'}">
@@ -696,12 +607,12 @@ class MagnetXApp {
             <div class="file-col-size">${f.sizeFormatted || formatBytes(f.size || 0)}</div>
             <div class="file-col-actions">
               ${(isVideo || isAudio) ? `
-                <button class="btn-subtle btn-sm btn-stream-file" data-url="${streamUrl}" data-name="${this.escapeHtml(f.name)}" data-path="${this.escapeHtml(f.path)}" data-hash="${t.infoHash}" title="Stream video/audio directly in browser">
-                  ▶ Stream
+                <button class="btn-subtle btn-sm btn-open-stream-modal" data-url="${streamUrl}" data-name="${this.escapeHtml(f.name)}" data-path="${this.escapeHtml(f.path)}" data-hash="${t.infoHash}" title="Stream link & instructions for VLC, PotPlayer, MPV">
+                  ⚡ Stream in VLC
                 </button>
-                <button class="btn-subtle btn-sm btn-copy-vlc-link" data-url="${location.origin}${streamUrl}" title="Copy direct stream URL for VLC, PotPlayer, or MPV (instant playback & 5.1 sound)">
-                  ⚡ VLC
-                </button>
+                <a href="${m3uUrl}" download class="btn-subtle btn-sm" title="Download .m3u playlist to open directly in VLC / PotPlayer">
+                  📥 .m3u
+                </a>
               ` : ''}
 
               ${isArch ? `
@@ -715,10 +626,10 @@ class MagnetXApp {
                   ⬇️ Download
                 </a>
                 <button class="btn-subtle btn-sm btn-copy-direct-link" data-url="${location.origin}${downloadUrl}" title="Copy direct link for IDM/Download Manager">
-                  📋 Link
+                  📋 IDM
                 </button>
               ` : `
-                <button class="btn-subtle btn-sm" style="opacity:0.6;cursor:help;" onclick="alert('Downloading pieces from peers: ${pct}% completed. Please wait until 100% or click Stream to watch now!')" title="Download unlocks at 100% (currently ${pct}%)">
+                <button class="btn-subtle btn-sm" style="opacity:0.6;cursor:help;" onclick="alert('Downloading pieces from peers: ${pct}% completed. Please wait until 100% to save file to disk, or click Stream in VLC to watch live!')" title="Download unlocks at 100% (currently ${pct}%)">
                   ⏳ ${pct}%
                 </button>
               `}
@@ -756,10 +667,17 @@ class MagnetXApp {
               <canvas class="speed-sparkline" width="140" height="28"></canvas>
             </div>
 
-            <!-- File selection button -->
+            <!-- Choose files to download -->
             <button class="btn-subtle btn-sm btn-open-file-select" data-hash="${t.infoHash}" title="Choose which files to download or skip">
-              🗂️ Files
+              🗂️ Select Files
             </button>
+
+            <!-- VLC Stream Playlist -->
+            ${hasStreamable ? `
+              <a href="/api/stream-playlist/${t.infoHash}" download class="btn-subtle btn-sm" title="Stream all media in VLC / PotPlayer via .m3u playlist">
+                🎬 Stream in VLC
+              </a>
+            ` : ''}
 
             <!-- Aria2 Export -->
             <a href="/api/torrents/${t.infoHash}/aria2" download class="btn-subtle btn-sm" title="Export Aria2/ADM batch control file (.aria2.txt)">
@@ -776,11 +694,8 @@ class MagnetXApp {
               <button class="btn-subtle btn-sm btn-trigger-extract" data-hash="${t.infoHash}" title="Re-extract archives">
                 🔄 Re-Extract
               </button>
-            ` : `
-              <button class="btn-primary btn-sm btn-stream-first" data-hash="${t.infoHash}">
-                🎬 Stream Live
-              </button>
-            `}
+            ` : ''}
+
             <button class="btn-subtle btn-sm btn-delete-torrent" data-hash="${t.infoHash}" style="color:var(--rose);" title="Remove torrent">
               🗑️
             </button>
@@ -851,6 +766,17 @@ class MagnetXApp {
       });
     });
 
+    // Stream modal trigger (VLC / PotPlayer / MPV)
+    parent.querySelectorAll('.btn-open-stream-modal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const url = btn.getAttribute('data-url');
+        const name = btn.getAttribute('data-name');
+        const hash = btn.getAttribute('data-hash');
+        const filePath = btn.getAttribute('data-path');
+        this.openStreamModal(url, name, hash, filePath);
+      });
+    });
+
     // Copy All Links (for IDM batch download)
     parent.querySelectorAll('.btn-copy-all-links').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -868,51 +794,13 @@ class MagnetXApp {
       });
     });
 
-    // Copy single file link
+    // Copy single file direct download link
     parent.querySelectorAll('.btn-copy-direct-link').forEach(btn => {
       btn.addEventListener('click', () => {
         const url = btn.getAttribute('data-url');
         navigator.clipboard.writeText(url).then(() => {
-          this.showToast('Direct download link copied to clipboard!', 'success');
+          this.showToast('Direct download link copied! Ready for IDM or browser.', 'success');
         });
-      });
-    });
-
-    // Copy VLC stream link for single file
-    parent.querySelectorAll('.btn-copy-vlc-link').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const url = btn.getAttribute('data-url');
-        navigator.clipboard.writeText(url).then(() => {
-          this.showToast('Copied VLC Stream Link! Open VLC -> Press Ctrl+N -> Paste & Play (5.1 Dolby surround & instant seek!)', 'success');
-        });
-      });
-    });
-
-    // Stream single file
-    parent.querySelectorAll('.btn-stream-file').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const url = btn.getAttribute('data-url');
-        const name = btn.getAttribute('data-name');
-        const hash = btn.getAttribute('data-hash');
-        const filePath = btn.getAttribute('data-path');
-        this.openPlayerModal(url, name, hash, filePath);
-      });
-    });
-
-    // Stream first streamable video in live torrent
-    parent.querySelectorAll('.btn-stream-first').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const hash = btn.getAttribute('data-hash');
-        const torrent = this.torrents.find(t => t.infoHash === hash);
-        if (torrent && torrent.files) {
-          const video = torrent.files.find(f => f.isStreamable || /\.(mp4|mkv|webm|mp3)$/i.test(f.name));
-          if (video) {
-            const streamUrl = `/api/stream/${hash}?file=${encodeURIComponent(video.path)}`;
-            this.openPlayerModal(streamUrl, video.name, hash, video.path);
-            return;
-          }
-        }
-        this.showToast('Still resolving streamable video file...', 'info');
       });
     });
 
@@ -992,7 +880,6 @@ class MagnetXApp {
       return;
     }
 
-    // Populate checkboxes
     const html = files.map((f, idx) => {
       const isSelected = f.selected !== false;
       if (isSelected) this.tempSelectedIndices.add(idx);
@@ -1030,7 +917,6 @@ class MagnetXApp {
 
     this.fileSelectTree.innerHTML = html;
 
-    // Attach checkbox change events
     this.fileSelectTree.querySelectorAll('.file-tree-checkbox').forEach(box => {
       box.addEventListener('change', (e) => {
         const idx = parseInt(e.target.getAttribute('data-index'), 10);
@@ -1068,66 +954,27 @@ class MagnetXApp {
   }
 
   /**
-   * Media Player with Plyr.io, Subtitle Auto-Attach & VLC Stream URL
+   * External Stream Modal (VLC / PotPlayer / MPV)
    */
-  async openPlayerModal(streamUrl, title, hash, filePath) {
-    this.playerTitle.textContent = title;
-    this.currentPlayingHash = hash;
-    this.currentPlayingFile = filePath;
-    this.currentStreamUrl = streamUrl;
+  openStreamModal(streamUrl, title, hash, filePath) {
+    const fullUrl = `${location.origin}${streamUrl}`;
+    this.streamInfoTitle.textContent = title;
+    this.streamDirectUrl.value = fullUrl;
+    this.btnDownloadM3u.href = `/api/stream-playlist/${hash}?file=${encodeURIComponent(filePath)}`;
+    this.btnModalDirectDl.href = `/api/download/${hash}?file=${encodeURIComponent(filePath)}`;
 
-    this.modalPlayer.classList.remove('hidden');
+    // Auto-copy stream link to clipboard for convenience
+    navigator.clipboard.writeText(fullUrl).then(() => {
+      this.showToast('Copied direct stream URL to clipboard! Ready to paste into VLC or PotPlayer.', 'success');
+    }).catch(() => {});
 
-    const lower = (filePath || '').toLowerCase();
-    const isMkv = lower.endsWith('.mkv');
-    const mimeType = isMkv ? 'video/x-matroska' : 'video/mp4';
-
-    if (this.plyr) {
-      this.plyr.source = {
-        type: 'video',
-        title: title,
-        sources: [{ src: streamUrl, type: mimeType }]
-      };
-      this.plyr.play().catch(() => {});
-    } else {
-      this.playerVideo.src = streamUrl;
-      this.playerVideo.load();
-      this.playerVideo.play().catch(() => {});
-    }
-
-    this.playerRawStreamBtn.href = streamUrl;
-    this.playerDirectDownloadBtn.href = `/api/download/${hash}?file=${encodeURIComponent(filePath)}`;
-
-    this.subtitlesDropdown.innerHTML = '<option value="none">Off</option>';
-    
-    // Auto-scan subtitles
-    try {
-      const res = await fetch(`/api/video-subtitles/${hash}?file=${encodeURIComponent(filePath)}`);
-      const data = await res.json();
-      if (data.subtitles && data.subtitles.length > 0) {
-        for (const sub of data.subtitles) {
-          const opt = document.createElement('option');
-          opt.value = `/api/subtitles/${hash}?file=${encodeURIComponent(sub.relativePath)}`;
-          opt.textContent = sub.name;
-          this.subtitlesDropdown.appendChild(opt);
-        }
-      }
-    } catch (e) {
-      console.warn('Subtitle fetch error:', e);
-    }
+    this.modalStreamInfo.classList.remove('hidden');
   }
 
-  closePlayerModal() {
-    if (this.plyr) {
-      this.plyr.stop();
-    } else {
-      this.playerVideo.pause();
-      this.playerVideo.src = '';
+  closeStreamModal() {
+    if (this.modalStreamInfo) {
+      this.modalStreamInfo.classList.add('hidden');
     }
-    const tracks = this.playerVideo.querySelectorAll('track');
-    tracks.forEach(t => t.remove());
-    this.modalPlayer.classList.add('hidden');
-    this.currentStreamUrl = null;
   }
 
   showToast(message, type = 'info') {

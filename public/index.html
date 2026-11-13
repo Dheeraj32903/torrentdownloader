@@ -8,7 +8,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -185,48 +184,62 @@
       </section>
     </main>
 
-    <!-- Cloud Media Player Modal -->
-    <div class="modal-backdrop hidden" id="modal-player">
-      <div class="modal-box player-modal">
+    <!-- External Player Streaming Modal (VLC / PotPlayer / MPV) -->
+    <div class="modal-backdrop hidden" id="modal-stream-info">
+      <div class="modal-box stream-modal">
         <div class="modal-bar">
           <div class="modal-heading">
             <span class="modal-icon">🎬</span>
             <div>
-              <h3 id="player-title">Media Stream Player</h3>
-              <p class="modal-caption">Instant range-based streaming with subtitles & audio controls</p>
+              <h3 id="stream-info-title">Stream in VLC or External Player</h3>
+              <p class="modal-caption">Direct HTTP 206 stream with 4K HDR, Dolby Atmos / EAC3 5.1 & instant timeline seeking</p>
             </div>
           </div>
-          <button class="modal-close" id="btn-close-player">&times;</button>
+          <button class="modal-close" id="btn-close-stream-info">&times;</button>
         </div>
 
-        <div class="modal-content player-content">
-          <div class="video-wrapper">
-            <video id="player-video" playsinline controls>
-              Your browser does not support HTML5 video streaming.
-            </video>
+        <div class="modal-content stream-info-content">
+          <div class="stream-url-box">
+            <label for="stream-direct-url">Direct Network Stream URL:</label>
+            <div class="url-copy-row">
+              <input type="text" id="stream-direct-url" readonly />
+              <button type="button" class="btn-primary" id="btn-modal-copy-stream">📋 Copy URL</button>
+            </div>
           </div>
 
-          <div class="player-bar-bottom">
-            <div class="subtitle-control">
-              <label for="subtitles-dropdown">💬 Subtitles:</label>
-              <select id="subtitles-dropdown" class="select-field">
-                <option value="none">Off</option>
-              </select>
+          <div class="stream-quick-actions">
+            <a href="#" id="btn-download-m3u" class="btn-subtle" download>
+              📥 Download VLC Playlist (.m3u)
+            </a>
+            <a href="#" id="btn-modal-direct-dl" class="btn-subtle">
+              ⬇️ Direct File Download
+            </a>
+          </div>
+
+          <div class="stream-player-cards">
+            <div class="player-card">
+              <div class="player-card-header">
+                <span class="player-logo">🟧</span>
+                <strong>VLC Media Player</strong>
+                <span class="badge-recommended">Recommended</span>
+              </div>
+              <p>Double-click the downloaded <code>.m3u</code> playlist, OR in VLC press <kbd>Ctrl</kbd> + <kbd>N</kbd>, paste the URL, and click <strong>Play</strong>.</p>
             </div>
 
-            <div class="player-button-group">
-              <button type="button" class="btn-subtle" id="player-remux-btn" title="Transcode audio to AAC if playing with no sound (e.g. AC3/EAC3/DTS)">
-                🔊 Fix Audio (AAC)
-              </button>
-              <button type="button" class="btn-subtle" id="player-copy-vlc-btn" title="Copy HTTP 206 stream link to paste into VLC, PotPlayer, MPV, or IINA">
-                📋 Copy VLC Stream Link
-              </button>
-              <a href="#" target="_blank" class="btn-subtle" id="player-raw-stream-btn">
-                🔗 Raw Stream
-              </a>
-              <a href="#" class="btn-primary btn-sm" id="player-direct-download-btn">
-                ⬇️ Direct Download
-              </a>
+            <div class="player-card">
+              <div class="player-card-header">
+                <span class="player-logo">🟡</span>
+                <strong>PotPlayer / MPV</strong>
+              </div>
+              <p>In PotPlayer press <kbd>Ctrl</kbd> + <kbd>U</kbd>, paste the link and press Enter. In MPV run <code>mpv &lt;URL&gt;</code>.</p>
+            </div>
+
+            <div class="player-card">
+              <div class="player-card-header">
+                <span class="player-logo">📱</span>
+                <strong>TV / Phone (Kodi, Infuse, MX Player)</strong>
+              </div>
+              <p>Open network stream in Infuse, MX Player, or Nova Video Player on Android/iOS/AppleTV.</p>
             </div>
           </div>
         </div>
@@ -279,7 +292,6 @@
 
   </div>
 
-  <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
