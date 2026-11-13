@@ -220,8 +220,8 @@ export default function App() {
   const completedCount = torrents.length - activeCount;
 
   return (
-    <div className="min-h-screen flex flex-col selection:bg-indigo-500/20 selection:text-indigo-800">
-      {/* Top Navbar */}
+    <div className="min-h-screen flex flex-col selection:bg-emerald-500/30 selection:text-emerald-200">
+      {/* Top Floating Bento Navbar */}
       <Navbar
         connected={connected}
         speeds={speeds}
@@ -229,22 +229,22 @@ export default function App() {
         activeCount={activeCount}
       />
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10">
-        {/* Hero Input Section */}
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-[1200px] w-full mx-auto px-4 py-8 sm:py-12 space-y-8">
+        {/* Command Bar Hero Input */}
         <HeroInput
           onAddMagnet={handleAddMagnet}
           onUploadTorrent={handleUploadTorrent}
           isLoading={loading}
         />
 
-        {/* Section Header & Filters */}
+        {/* Section Header & Bento Filters */}
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                <span>Extracted Transfers</span>
-                <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <h2 className="text-xl sm:text-2xl font-display font-bold text-white tracking-tight flex items-center gap-2.5">
+                <span>Active Transfers</span>
+                <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 mono-stat">
                   {torrents.length}
                 </span>
               </h2>
@@ -254,25 +254,25 @@ export default function App() {
             <div className="flex items-center gap-3 flex-wrap">
               {/* Search Bar */}
               <div className="relative flex items-center">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 pointer-events-none" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Filter transfers..."
-                  className="glass-input pl-9 pr-4 py-2 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 w-48 sm:w-60 bg-white"
+                  className="bg-black/40 border border-white/[0.08] text-xs sm:text-sm text-white placeholder-slate-500 pl-9 pr-3.5 py-1.5 rounded-xl focus:outline-none focus:border-emerald-500/50 w-44 sm:w-56 font-mono transition-all"
                 />
               </div>
 
               {/* Status Filters */}
-              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
+              <div className="flex bg-black/40 p-1 rounded-xl border border-white/[0.08] text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => setFilter('all')}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
                     filter === 'all'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold shadow-sm shadow-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   All ({torrents.length})
@@ -282,8 +282,8 @@ export default function App() {
                   onClick={() => setFilter('active')}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
                     filter === 'active'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold shadow-sm shadow-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   Extracting ({activeCount})
@@ -293,8 +293,8 @@ export default function App() {
                   onClick={() => setFilter('completed')}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
                     filter === 'completed'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold shadow-sm shadow-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   Ready ({completedCount})
@@ -305,7 +305,7 @@ export default function App() {
 
           {/* Torrents List */}
           {filteredTorrents.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 gap-4">
               {filteredTorrents.map((t) => (
                 <TorrentCard
                   key={t.infoHash}
@@ -319,14 +319,14 @@ export default function App() {
             </div>
           ) : (
             /* Empty State */
-            <div className="glass-panel rounded-3xl p-12 text-center border border-slate-200 max-w-lg mx-auto space-y-4">
-              <div className="w-16 h-16 rounded-3xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 mx-auto shadow-sm">
+            <div className="bento-card p-12 text-center max-w-lg mx-auto space-y-4">
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto shadow-lg shadow-emerald-500/10">
                 <FolderDown className="w-8 h-8" />
               </div>
-              <div className="space-y-1">
-                <h3 className="text-lg font-bold text-slate-900">No active transfers</h3>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Paste any magnet link or drop a .torrent above to instantly extract files, stream in VLC, and generate gigabit direct download links.
+              <div className="space-y-1.5">
+                <h3 className="text-lg font-display font-bold text-white">No active transfers</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                  Paste any magnet link or drop a .torrent above to extract files, watch movies instantly in VLC, and generate gigabit direct download links.
                 </p>
               </div>
             </div>
@@ -334,7 +334,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* Stream in External Player Modal */}
+      {/* Stream in Cinema Player / VLC Modal */}
       <StreamModal
         isOpen={streamModalOpen}
         onClose={() => setStreamModalOpen(false)}
@@ -343,7 +343,7 @@ export default function App() {
         onShowToast={showToast}
       />
 
-      {/* Floating Glass Toasts */}
+      {/* Floating Bento Toasts */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );

@@ -27,7 +27,7 @@ export default defineConfig({
   },
   build: {
     outDir: path.resolve(__dirname, '../public'),
-    emptyOutDir: false,
+    emptyOutDir: true,
     chunkSizeWarningLimit: 1500
   }
 });

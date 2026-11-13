@@ -1,127 +1,154 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap');
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --font-mono: 'JetBrains Mono', monospace;
-  }
+:root {
+  --bg-obsidian: #07080c;
+  --bg-card: rgba(16, 18, 27, 0.75);
+  --bg-card-hover: rgba(22, 25, 38, 0.85);
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-highlight: rgba(16, 185, 129, 0.45);
   
-  body {
-    background-color: #f8fafc;
-    background-image: 
-      radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 45%),
-      radial-gradient(at 100% 0%, rgba(14, 165, 233, 0.08) 0px, transparent 45%),
-      radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 45%);
-    background-attachment: fixed;
-    color: #0f172a;
-  }
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  --accent-emerald: #10b981;
+  --accent-cyan: #06b6d4;
+  --accent-violet: #6366f1;
+
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-/* Glassmorphism Classes for Ultra-Stylish Light Theme */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.05), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+body {
+  background-color: var(--bg-obsidian);
+  background-image: 
+    radial-gradient(ellipse 80% 50% at 50% -15%, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.06), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 100%, rgba(99, 102, 241, 0.08), transparent);
+  background-attachment: fixed;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
 }
 
-.glass-card {
-  background: #ffffff;
+/* Tabular numbers prevent speed counters from jumping horizontally */
+.mono-stat {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* 2026 Bento Card with 1px top specular reflection */
+.bento-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  box-shadow: 
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+    0 20px 40px -15px rgba(0, 0, 0, 0.65);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bento-card:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.bento-card-highlight {
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: 
+    inset 0 1px 0 0 rgba(16, 185, 129, 0.2),
+    0 20px 40px -15px rgba(16, 185, 129, 0.15);
+}
+
+.bento-card-highlight:hover {
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+/* Command Bar Input */
+.command-input {
+  background: rgba(12, 14, 22, 0.85);
   backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(226, 232, 240, 0.85);
-  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.03);
-  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.glass-card:hover {
-  border-color: rgba(99, 102, 241, 0.45);
-  box-shadow: 0 20px 35px -8px rgba(99, 102, 241, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.02);
-  transform: translateY(-2px);
-}
-
-.glass-card-completed {
-  background: #ffffff;
-  border: 1px solid rgba(167, 243, 208, 0.95);
-  box-shadow: 0 4px 20px -2px rgba(16, 185, 129, 0.04);
-}
-
-.glass-card-completed:hover {
-  border-color: rgba(16, 185, 129, 0.6);
-  box-shadow: 0 20px 35px -8px rgba(16, 185, 129, 0.15);
-  transform: translateY(-2px);
-}
-
-.glass-input {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.02);
-  color: #0f172a;
-  transition: all 0.2s ease;
-}
-
-.glass-input:focus {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
-  outline: none;
-}
-
-.glow-btn-indigo {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-  box-shadow: 0 8px 20px -4px rgba(79, 70, 229, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.glow-btn-indigo:hover {
-  box-shadow: 0 12px 28px -4px rgba(79, 70, 229, 0.5);
-  transform: scale(1.02);
+.command-input:focus-within {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 
+    0 0 25px -4px rgba(16, 185, 129, 0.25),
+    inset 0 2px 4px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-.glow-btn-emerald {
+/* Neon Glow Buttons */
+.btn-emerald {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  box-shadow: 0 8px 20px -4px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 4px 15px -2px rgba(16, 185, 129, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.glow-btn-emerald:hover {
-  box-shadow: 0 12px 28px -4px rgba(16, 185, 129, 0.45);
-  transform: scale(1.02);
+.btn-emerald:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 6px 20px 0px rgba(16, 185, 129, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
 }
 
-/* Custom Scrollbars */
+.btn-cinema {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  box-shadow: 0 4px 15px -2px rgba(99, 102, 241, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-cinema:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  box-shadow: 0 6px 20px 0px rgba(99, 102, 241, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-glass {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: all 0.18s ease;
+}
+
+.btn-glass:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+}
+
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: rgba(7, 8, 12, 0.8);
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: rgba(16, 185, 129, 0.4);
 }
 
-/* Shine effect for progress tracks */
-@keyframes progressShine {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+/* Progress Leading Edge Glow */
+@keyframes leadingPulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; filter: drop-shadow(0 0 6px #10b981); }
 }
 
-.progress-shine {
-  position: relative;
-  overflow: hidden;
-}
-
-.progress-shine::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
-  animation: progressShine 2.5s infinite;
+.animate-leading-pulse {
+  animation: leadingPulse 2s ease-in-out infinite;
 }
