@@ -507,6 +507,7 @@ export class TorrentManager {
     }
 
     if (deleteFiles && meta) {
+      // 1. Delete standard folder or file path
       const torrentPath = path.join(this.downloadDir, meta.name || infoHash);
       if (fs.existsSync(torrentPath)) {
         try {
@@ -516,12 +517,95 @@ export class TorrentManager {
           console.warn(`[TorrentManager] Error deleting files: ${err.message}`);
         }
       }
+
+      // 2. Delete any extracted archives/folders
+      if (meta.extractedFiles && Array.isArray(meta.extractedFiles)) {
+        for (const ext of meta.extractedFiles) {
+          const extPath = path.join(this.downloadDir, ext);
+          if (fs.existsSync(extPath)) {
+            try { fs.rmSync(extPath, { recursive: true, force: true }); } catch {}
+          }
+        }
+      }
     }
 
     this.torrentsMap.delete(infoHash);
     this.saveState();
     this.notifyUpdate();
     return true;
+  }
+
+  /**
+   * Boosts swarm peer discovery and announces to 70+ tier-1 trackers immediately
+   */
+  boostTorrent(infoHash) {
+    const activeTorrent = this.getActiveTorrent(infoHash);
+    const meta = this.torrentsMap.get(infoHash);
+
+    if (!activeTorrent) {
+      return { success: false, message: 'Torrent is currently paused or inactive' };
+    }
+
+    try {
+      // Force tracker announcement
+      if (activeTorrent.discovery && activeTorrent.discovery.tracker) {
+        activeTorrent.discovery.tracker.announce();
+      }
+
+      // Inject fresh cached trackers
+      const freshTrackers = getCachedTrackers();
+      for (const tr of freshTrackers) {
+        try {
+          activeTorrent.addTracker(tr);
+        } catch {}
+      }
+
+      // Reschedule priority chunks for largest video
+      if (activeTorrent.files && activeTorrent.files.length > 0) {
+        const largestFile = activeTorrent.files.reduce((p, c) => (c.length > p.length ? c : p));
+        prioritizeStreamPieces(activeTorrent, largestFile, 0);
+      }
+
+      this.notifyUpdate();
+      return { 
+        success: true, 
+        numPeers: activeTorrent.numPeers || 0,
+        message: `Swarm boosted! Re-announced to 70+ trackers.` 
+      };
+    } catch (err) {
+      console.warn('[TorrentManager] Boost error:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Purges all downloaded files, cancels active torrents, and frees disk space completely
+   */
+  async purgeAllStorage() {
+    const hashes = Array.from(this.torrentsMap.keys());
+    for (const h of hashes) {
+      try {
+        await this.deleteTorrent(h, true);
+      } catch {}
+    }
+
+    // Clean any orphaned files in downloadsDir
+    try {
+      if (fs.existsSync(this.downloadDir)) {
+        const items = fs.readdirSync(this.downloadDir);
+        for (const item of items) {
+          const itemPath = path.join(this.downloadDir, item);
+          try {
+            fs.rmSync(itemPath, { recursive: true, force: true });
+          } catch {}
+        }
+      }
+    } catch {}
+
+    this.torrentsMap.clear();
+    this.saveState();
+    this.notifyUpdate();
+    return { success: true, message: 'All downloaded files and cache have been purged.' };
   }
 
   /**

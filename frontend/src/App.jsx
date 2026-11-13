@@ -2,14 +2,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   Zap, Search, Filter, HardDrive, CheckCircle2, 
-  Layers, Sparkles, FolderDown, ArrowUpDown, RefreshCw 
+  Layers, Sparkles, FolderDown, ArrowUpDown, RefreshCw, 
+  Film, ArrowDownUp 
 } from 'lucide-react';
 
 import Navbar from './components/Navbar.jsx';
 import HeroInput from './components/HeroInput.jsx';
 import TorrentCard from './components/TorrentCard.jsx';
 import StreamModal from './components/StreamModal.jsx';
+import StorageModal from './components/StorageModal.jsx';
 import ToastContainer from './components/ToastContainer.jsx';
+import { isMediaFile } from './utils/format.js';
 
 export default function App() {
   const [torrents, setTorrents] = useState([]);
@@ -17,11 +20,13 @@ export default function App() {
   const [speeds, setSpeeds] = useState({ downloadFormatted: '0 B/s', uploadFormatted: '0 B/s' });
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState('all'); // 'all' | 'active' | 'completed'
+  const [filter, setFilter] = useState('all'); // 'all' | 'active' | 'completed' | 'video'
+  const [sortBy, setSortBy] = useState('date'); // 'date' | 'speed' | 'size' | 'progress'
   const [search, setSearch] = useState('');
   
-  // Stream modal state
+  // Modals state
   const [streamModalOpen, setStreamModalOpen] = useState(false);
+  const [storageModalOpen, setStorageModalOpen] = useState(false);
   const [selectedTorrent, setSelectedTorrent] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
 
@@ -176,8 +181,26 @@ export default function App() {
 
       setTorrents(prev => prev.filter(t => t.infoHash !== hash));
       showToast(`Torrent removed successfully`, 'info');
+      // Update disk stats
+      fetch('/api/system/stats').then(r => r.json()).then(d => { if (d.disk) setDiskStats(d.disk); });
     } catch (err) {
       showToast(err.message || 'Failed to delete torrent', 'error');
+    }
+  };
+
+  // Handle Purge All Storage & Downloads
+  const handlePurgeAll = async () => {
+    try {
+      const res = await fetch('/api/storage/purge-all', { method: 'POST' });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      setTorrents([]);
+      showToast('All downloaded files and cache have been purged! Your SSD is free.', 'success');
+      // Refresh disk stats
+      fetch('/api/system/stats').then(r => r.json()).then(d => { if (d.disk) setDiskStats(d.disk); });
+    } catch (err) {
+      showToast(err.message || 'Failed to purge storage', 'error');
     }
   };
 
@@ -205,16 +228,27 @@ export default function App() {
     setStreamModalOpen(true);
   };
 
-  // Filtered Torrents
-  const filteredTorrents = torrents.filter(t => {
-    const matchesSearch = (t.name || t.infoHash || '').toLowerCase().includes(search.toLowerCase());
-    if (!matchesSearch) return false;
+  // Filtered & Sorted Torrents
+  const filteredTorrents = torrents
+    .filter(t => {
+      const matchesSearch = (t.name || t.infoHash || '').toLowerCase().includes(search.toLowerCase());
+      if (!matchesSearch) return false;
 
-    const isDone = t.status === 'completed' || t.progress >= 1;
-    if (filter === 'active') return !isDone;
-    if (filter === 'completed') return isDone;
-    return true;
-  });
+      const isDone = t.status === 'completed' || t.progress >= 1;
+      if (filter === 'active') return !isDone;
+      if (filter === 'completed') return isDone;
+      if (filter === 'video') {
+        const hasVideo = (t.files || []).some(f => isMediaFile(f.name || f.path)) || isMediaFile(t.name);
+        return hasVideo;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'speed') return (b.downloadSpeed || 0) - (a.downloadSpeed || 0);
+      if (sortBy === 'size') return (b.total || 0) - (a.total || 0);
+      if (sortBy === 'progress') return (b.progress || 0) - (a.progress || 0);
+      return 0; // Default order
+    });
 
   const activeCount = torrents.filter(t => t.status !== 'completed' && t.progress < 1).length;
   const completedCount = torrents.length - activeCount;
@@ -227,6 +261,7 @@ export default function App() {
         speeds={speeds}
         diskStats={diskStats}
         activeCount={activeCount}
+        onOpenStorage={() => setStorageModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -250,8 +285,8 @@ export default function App() {
               </h2>
             </div>
 
-            {/* Controls: Search & Tabs */}
-            <div className="flex items-center gap-3 flex-wrap">
+            {/* Controls: Search, Sort & Filter Tabs */}
+            <div className="flex items-center gap-2.5 flex-wrap">
               {/* Search Bar */}
               <div className="relative flex items-center">
                 <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 pointer-events-none" />
@@ -260,8 +295,23 @@ export default function App() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Filter transfers..."
-                  className="bg-black/40 border border-white/[0.08] text-xs sm:text-sm text-white placeholder-slate-500 pl-9 pr-3.5 py-1.5 rounded-xl focus:outline-none focus:border-emerald-500/50 w-44 sm:w-56 font-mono transition-all"
+                  className="bg-black/40 border border-white/[0.08] text-xs sm:text-sm text-white placeholder-slate-500 pl-9 pr-3.5 py-1.5 rounded-xl focus:outline-none focus:border-emerald-500/50 w-40 sm:w-52 font-mono transition-all"
                 />
+              </div>
+
+              {/* Sort Selector */}
+              <div className="flex items-center gap-1 bg-black/40 border border-white/[0.08] px-2.5 py-1.5 rounded-xl text-xs">
+                <ArrowDownUp className="w-3.5 h-3.5 text-cyan-400" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="bg-transparent text-slate-300 font-semibold focus:outline-none text-xs cursor-pointer"
+                >
+                  <option value="date" className="bg-[#0e111a] text-white">Latest</option>
+                  <option value="speed" className="bg-[#0e111a] text-white">Fastest Speed</option>
+                  <option value="size" className="bg-[#0e111a] text-white">Largest Size</option>
+                  <option value="progress" className="bg-[#0e111a] text-white">Progress</option>
+                </select>
               </div>
 
               {/* Status Filters */}
@@ -340,6 +390,17 @@ export default function App() {
         onClose={() => setStreamModalOpen(false)}
         torrent={selectedTorrent}
         file={selectedFile}
+        onShowToast={showToast}
+      />
+
+      {/* Storage & Disk Cache Manager Modal */}
+      <StorageModal
+        isOpen={storageModalOpen}
+        onClose={() => setStorageModalOpen(false)}
+        diskStats={diskStats}
+        torrents={torrents}
+        onDeleteTorrent={handleDeleteTorrent}
+        onPurgeAll={handlePurgeAll}
         onShowToast={showToast}
       />
 

@@ -625,6 +625,25 @@ app.get('/api/download-zip/:hash', (req, res) => {
   return res.status(400).json({ error: 'Download has not finished or folder does not exist yet' });
 });
 
+// Boost torrent swarm discovery & announce to all trackers
+app.post('/api/torrents/:hash/boost', (req, res) => {
+  const result = torrentManager.boostTorrent(req.params.hash);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json(result);
+});
+
+// Purge all downloaded files and clear storage
+app.post('/api/storage/purge-all', async (req, res) => {
+  try {
+    const result = await torrentManager.purgeAllStorage();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to purge storage' });
+  }
+});
+
 // System storage & statistics
 app.get('/api/system/stats', (req, res) => {
   const disk = getDiskStats(DOWNLOADS_DIR);

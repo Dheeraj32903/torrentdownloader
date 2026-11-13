@@ -24,9 +24,29 @@ export default function TorrentCard({
   const [turboActive, setTurboActive] = useState(false);
   const [turboProgress, setTurboProgress] = useState(0);
   const [turboSpeed, setTurboSpeed] = useState('');
+  const [boosting, setBoosting] = useState(false);
 
   const pct = Math.min(Math.round((torrent.progress || 0) * 100), 100);
   const isCompleted = torrent.status === 'completed' || pct === 100;
+
+  // Handle 1-Click Swarm Boost (Re-announce to 70+ Trackers)
+  const handleBoost = async () => {
+    if (boosting) return;
+    setBoosting(true);
+    try {
+      const res = await fetch(`/api/torrents/${torrent.infoHash}/boost`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        onShowToast(`Swarm Boosted! Re-announced to 70+ trackers (${data.numPeers || 0} peers connected)`, 'success');
+      } else {
+        onShowToast(data.message || 'Swarm re-announced', 'info');
+      }
+    } catch (err) {
+      onShowToast('Could not boost swarm: ' + err.message, 'warning');
+    } finally {
+      setTimeout(() => setBoosting(false), 2000);
+    }
+  };
 
   // Auto-fetch files when expanded or on initial mount if empty
   useEffect(() => {
@@ -81,7 +101,7 @@ export default function TorrentCard({
     onShowToast('Starting 4-stream Turbo Download in browser...', 'info');
 
     const totalBytes = (primaryVideo?.size) || torrent.total || 0;
-    const NUM_THREADS = 4;
+    const NUM_THREADS = 6;
     const chunkSize = Math.ceil(totalBytes / NUM_THREADS);
     let downloadedSoFar = 0;
     const startTime = Date.now();
@@ -206,11 +226,30 @@ export default function TorrentCard({
                 </span>
               ))}
 
-              {/* Connected Peers */}
-              <span className="text-xs text-slate-400 font-semibold flex items-center gap-1 mono-stat ml-auto sm:ml-0">
-                <Users className="w-3.5 h-3.5 text-cyan-400" />
-                <span>{torrent.numPeers || 0} peers</span>
-              </span>
+              {/* Connected Peers & Swarm Boost */}
+              <div className="flex items-center gap-1.5 ml-auto sm:ml-0">
+                <span className="text-xs text-slate-300 font-semibold flex items-center gap-1 mono-stat px-2 py-0.5 rounded-md bg-black/40 border border-white/[0.06]">
+                  <Users className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>{torrent.numPeers || 0} peers</span>
+                </span>
+
+                {!isCompleted && (
+                  <button
+                    type="button"
+                    onClick={handleBoost}
+                    disabled={boosting}
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 border transition-all cursor-pointer ${
+                      boosting
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/30 animate-pulse'
+                        : 'bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border-emerald-500/25 hover:border-emerald-500/40'
+                    }`}
+                    title="Boost swarm: re-announce to 70+ tier-1 trackers and discover fast seeders"
+                  >
+                    <Zap className="w-2.5 h-2.5 fill-current" />
+                    <span>{boosting ? 'Boosting...' : '⚡ Boost'}</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Cleaned Movie Title */}

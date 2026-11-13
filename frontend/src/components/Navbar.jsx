@@ -1,7 +1,7 @@
 import React from 'react';
 import { Zap, ArrowDown, ArrowUp, HardDrive, Wifi, WifiOff, Users } from 'lucide-react';
 
-export default function Navbar({ connected, speeds, diskStats, activeCount }) {
+export default function Navbar({ connected, speeds, diskStats, activeCount, onOpenStorage }) {
   const percentUsed = diskStats?.percentUsed || 0;
   const isStorageHigh = percentUsed > 85;
 
@@ -45,13 +45,18 @@ export default function Navbar({ connected, speeds, diskStats, activeCount }) {
             </div>
           </div>
 
-          {/* Disk Space Meter */}
+          {/* Clickable Interactive Disk Space Meter */}
           {diskStats && (
-            <div className="hidden md:flex items-center gap-2.5 bg-black/40 border border-white/[0.06] px-3.5 py-1.5 rounded-xl text-xs">
-              <HardDrive className={`w-3.5 h-3.5 ${isStorageHigh ? 'text-amber-400' : 'text-slate-400'}`} />
-              <div className="flex flex-col gap-1 w-24">
+            <button
+              type="button"
+              onClick={onOpenStorage}
+              className="hidden md:flex items-center gap-2.5 bg-black/40 hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/[0.15] px-3.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer group"
+              title="Click to manage disk storage & free space"
+            >
+              <HardDrive className={`w-3.5 h-3.5 transition-colors ${isStorageHigh ? 'text-amber-400' : 'text-slate-400 group-hover:text-emerald-400'}`} />
+              <div className="flex flex-col gap-1 w-24 text-left">
                 <div className="flex justify-between text-[10px] text-slate-400 mono-stat font-medium">
-                  <span>SSD</span>
+                  <span className="group-hover:text-white transition-colors">SSD (C:)</span>
                   <span className={isStorageHigh ? 'text-amber-400 font-bold' : 'text-slate-300'}>
                     {percentUsed}%
                   </span>
@@ -63,7 +68,7 @@ export default function Navbar({ connected, speeds, diskStats, activeCount }) {
                   />
                 </div>
               </div>
-            </div>
+            </button>
           )}
 
           {/* Connection Status Badge */}
