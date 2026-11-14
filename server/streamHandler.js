@@ -6,6 +6,22 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const mime = require('mime-types');
 
+const MIME_TYPES = {
+  '.mp4': 'video/mp4',
+  '.m4v': 'video/mp4',
+  '.mkv': 'video/x-matroska',
+  '.webm': 'video/webm',
+  '.avi': 'video/x-msvideo',
+  '.mov': 'video/quicktime',
+  '.mp3': 'audio/mpeg',
+  '.flac': 'audio/flac',
+  '.wav': 'audio/wav',
+  '.aac': 'audio/aac',
+  '.ogg': 'audio/ogg',
+  '.srt': 'text/plain; charset=utf-8',
+  '.vtt': 'text/vtt; charset=utf-8'
+};
+
 let ffmpegChecked = false;
 let hasFfmpeg = false;
 
@@ -27,35 +43,11 @@ export function checkFfmpeg() {
 }
 
 /**
- * Prioritizes first 15 pieces (headers/moov atom/EBML), last 15 pieces (EBML cues/SeekHead/moof index),
- * and dynamic seek pieces so that video playback and duration bar seeking start immediately!
+ * Returns accurate browser-friendly video/audio MIME type
  */
-export function prioritizeStreamPieces(torrent, file, byteStart = 0) {
-  if (!torrent || !file || !torrent.pieceLength) return;
-
-  const pieceLength = torrent.pieceLength;
-  const fileOffset = file.offset || 0;
-  const startPiece = Math.floor(fileOffset / pieceLength);
-  const endPiece = Math.floor((fileOffset + file.length - 1) / pieceLength);
-
-  if (typeof torrent.critical === 'function') {
-    // 1. Mark container header pieces (first 30 pieces) as critical for instant metadata load
-    const headerEnd = Math.min(startPiece + 30, endPiece);
-    torrent.critical(startPiece, headerEnd);
-
-    // 2. Mark footer index/cues pieces (last 20 pieces) as critical so duration & seek map load immediately
-    const footerStart = Math.max(startPiece, endPiece - 20);
-    torrent.critical(footerStart, endPiece);
-
-    // 3. Dynamic Seek: If user skipped to a specific byte in the duration bar, prioritize target pieces!
-    if (byteStart > 0) {
-      const seekOffset = fileOffset + byteStart;
-      const seekPiece = Math.floor(seekOffset / pieceLength);
-      const seekPieceEnd = Math.min(seekPiece + 40, endPiece);
-      torrent.critical(seekPiece, seekPieceEnd);
-      console.log(`[Stream] Seek priority applied for piece ${seekPiece}..${seekPieceEnd} (offset ${byteStart})`);
-    }
-  }
+export function getMediaMimeType(filePath) {
+  const ext = path.extname(filePath || '').toLowerCase();
+  return MIME_TYPES[ext] || mime.lookup(filePath) || 'application/octet-stream';
 }
 
 /**
@@ -69,27 +61,182 @@ export function srtToVtt(srtContent) {
 }
 
 /**
- * Returns accurate browser-friendly video/audio MIME type
+ * Prioritizes first 20 pieces (headers/moov atom/EBML), last 3 pieces (EBML cues/SeekHead/moof index),
+ * and dynamic seek pieces so that video playback and duration bar seeking start immediately!
  */
-export function getMediaMimeType(filePath) {
-  const lower = (filePath || '').toLowerCase();
-  if (lower.endsWith('.mkv')) return 'video/x-matroska';
-  if (lower.endsWith('.mp4') || lower.endsWith('.m4v')) return 'video/mp4';
-  if (lower.endsWith('.webm')) return 'video/webm';
-  if (lower.endsWith('.avi')) return 'video/x-msvideo';
-  if (lower.endsWith('.mov')) return 'video/quicktime';
-  if (lower.endsWith('.ogg') || lower.endsWith('.ogv')) return 'video/ogg';
-  if (lower.endsWith('.mp3')) return 'audio/mpeg';
-  if (lower.endsWith('.wav')) return 'audio/wav';
-  if (lower.endsWith('.flac')) return 'audio/flac';
-  if (lower.endsWith('.aac')) return 'audio/aac';
-  if (lower.endsWith('.m4a')) return 'audio/mp4';
-  return mime.lookup(filePath) || 'application/octet-stream';
+export function prioritizeStreamPieces(torrent, file, byteStart = 0) {
+  if (!torrent || !file || !torrent.pieceLength) return;
+
+  const pieceLength = torrent.pieceLength;
+  const fileOffset = file.offset || 0;
+  const startPiece = Math.floor(fileOffset / pieceLength);
+  const endPiece = Math.floor((fileOffset + file.length - 1) / pieceLength);
+
+  if (typeof torrent.critical === 'function') {
+    // 1. Mark container header pieces (first 20 pieces) as critical for instant metadata load
+    const headerEnd = Math.min(startPiece + 20, endPiece);
+    torrent.critical(startPiece, headerEnd);
+
+    // 2. Mark footer index/cues pieces (last 3 pieces) as critical so duration & seek map load immediately
+    const footerStart = Math.max(startPiece, endPiece - 3);
+    torrent.critical(footerStart, endPiece);
+
+    // 3. Dynamic Seek: If user skipped to a specific byte in the duration bar, prioritize target pieces!
+    if (byteStart > 0) {
+      const seekOffset = fileOffset + byteStart;
+      const seekPiece = Math.floor(seekOffset / pieceLength);
+      const seekPieceEnd = Math.min(seekPiece + 25, endPiece);
+      torrent.critical(seekPiece, seekPieceEnd);
+      console.log(`[Stream] Seek priority applied for piece ${seekPiece}..${seekPieceEnd} (offset ${byteStart})`);
+    }
+  }
+}
+
+/**
+ * Rock-solid Dual-Path Streaming + HEAD Request + Range Prioritization engine
+ * Serves both /api/download and /api/stream endpoints with zero memory leaks and maximum disk/swarm throughput.
+ */
+export function handleFileStream(req, res, torrent, fileIdentifier, isDownload = false) {
+  if (!torrent) {
+    return res.status(404).json({ error: 'Torrent not found' });
+  }
+
+  // Resolve file by index or relative path
+  let file = null;
+  const files = torrent.files || [];
+
+  if (typeof fileIdentifier === 'number' || (!isNaN(parseInt(fileIdentifier, 10)) && String(parseInt(fileIdentifier, 10)) === String(fileIdentifier))) {
+    const idx = parseInt(fileIdentifier, 10);
+    file = files[idx];
+  } else if (typeof fileIdentifier === 'string' && fileIdentifier.trim()) {
+    const norm = fileIdentifier.replace(/\\/g, '/');
+    file = files.find(f => 
+      f.path.replace(/\\/g, '/') === norm ||
+      f.name === path.basename(norm) ||
+      norm.endsWith(f.name)
+    );
+  }
+
+  // Fallback: If no identifier or not found, select largest video or first file
+  if (!file && files.length > 0) {
+    const videoFiles = files.filter(f => /\.(mp4|mkv|webm|avi|mov)$/i.test(f.name));
+    if (videoFiles.length > 0) {
+      file = videoFiles.reduce((prev, curr) => (curr.length > prev.length ? curr : prev));
+    } else {
+      file = files[0];
+    }
+  }
+
+  if (!file) {
+    return res.status(404).json({ error: 'File not found in torrent' });
+  }
+
+  const totalSize = file.length;
+  const ext = path.extname(file.name).toLowerCase();
+  const contentType = isDownload
+    ? 'application/octet-stream'
+    : (MIME_TYPES[ext] || 'application/octet-stream');
+
+  const safeAsciiName = file.name.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '');
+  const dispositionType = isDownload ? 'attachment' : 'inline';
+
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader(
+    'Content-Disposition',
+    `${dispositionType}; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(file.name)}`
+  );
+
+  // Parse Range header for HTTP 206 Partial Content (Used by video players & IDM)
+  const range = req.headers.range;
+  let start = 0;
+  let end = totalSize - 1;
+
+  if (range) {
+    const parts = range.replace(/bytes=/, '').split('-');
+    start = parseInt(parts[0], 10);
+    end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+
+    if (isNaN(start) || isNaN(end) || start >= totalSize || end >= totalSize || start > end) {
+      res.setHeader('Content-Range', `bytes */${totalSize}`);
+      return res.status(416).end();
+    }
+
+    res.status(206);
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+    res.setHeader('Content-Length', end - start + 1);
+  } else {
+    res.status(200);
+    res.setHeader('Content-Length', totalSize);
+  }
+
+  // Crucial for IDM / Browser probes: If HEAD request, end immediately after headers!
+  if (req.method === 'HEAD') {
+    return res.end();
+  }
+
+  // Check if file is 100% downloaded on disk for native high-speed fs streaming
+  const diskFilePath = path.join(torrent.path || '', file.path || file.name);
+  const isCompleteOnDisk = (torrent.done || (file.progress !== undefined && file.progress >= 1)) && fs.existsSync(diskFilePath);
+
+  let stream;
+  if (isCompleteOnDisk) {
+    // PATH A: Fast native OS disk stream (1MB chunks, zero WebTorrent overhead)
+    stream = fs.createReadStream(diskFilePath, {
+      start,
+      end,
+      highWaterMark: 1024 * 1024
+    });
+  } else {
+    // PATH B: Live swarm stream — prioritize the exact pieces requested!
+    if (torrent.pieceLength) {
+      const absStart = (file.offset || 0) + start;
+      const absEnd = (file.offset || 0) + end;
+      const startPiece = Math.floor(absStart / torrent.pieceLength);
+      const endPiece = Math.floor(absEnd / torrent.pieceLength);
+
+      // Mark next 25 pieces from current playback/download point as critical
+      if (typeof torrent.critical === 'function') {
+        torrent.critical(startPiece, Math.min(endPiece, startPiece + 25));
+      }
+    }
+    file.select();
+    stream = file.createReadStream({ start, end });
+  }
+
+  // Prevent memory/descriptor leaks when user seeks or cancels download
+  let closed = false;
+  const cleanup = () => {
+    if (!closed) {
+      closed = true;
+      if (stream && typeof stream.destroy === 'function') {
+        try { stream.destroy(); } catch {}
+      }
+    }
+  };
+
+  req.on('close', cleanup);
+  res.on('close', cleanup);
+
+  stream.on('error', (err) => {
+    cleanup();
+    if (err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.code === 'EPIPE' || err?.message?.includes('closed')) {
+      return;
+    }
+    console.warn('[Stream] Stream error:', err.message);
+    if (!res.headersSent) {
+      res.status(500).end();
+    } else {
+      res.end();
+    }
+  });
+
+  stream.pipe(res);
 }
 
 /**
  * Handles HTTP 206 Partial Content streaming for disk video and audio
- * with bounded chunk slicing, low latency, and graceful abort on client seek.
  */
 export function handleMediaStream(req, res, filePath) {
   if (!fs.existsSync(filePath)) {
@@ -114,220 +261,68 @@ export function handleMediaStream(req, res, filePath) {
   if (range) {
     const parts = range.replace(/bytes=/, '').split('-');
     const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
 
-    if (isNaN(start) || start >= fileSize) {
+    if (isNaN(start) || isNaN(end) || start >= fileSize || end >= fileSize || start > end) {
       res.status(416).set('Content-Range', `bytes */${fileSize}`);
       return res.end();
     }
 
-    // Bounded chunk slicing (16MB max per range request) for instant seeking and low RAM footprint
-    const MAX_CHUNK_SIZE = 16 * 1024 * 1024;
-    let end = parts[1] ? parseInt(parts[1], 10) : (start + MAX_CHUNK_SIZE - 1);
-    if (isNaN(end) || end >= fileSize) {
-      end = fileSize - 1;
-    }
-    if (end < start) end = start;
-
     const chunkSize = (end - start) + 1;
-    const fileStream = fs.createReadStream(filePath, { start, end });
+    const fileStream = fs.createReadStream(filePath, { start, end, highWaterMark: 1024 * 1024 });
 
     res.writeHead(206, {
       'Content-Range': `bytes ${start}-${end}/${fileSize}`,
       'Accept-Ranges': 'bytes',
       'Content-Length': chunkSize,
       'Content-Type': contentType,
-      'Cache-Control': 'no-cache, no-store',
+      'Cache-Control': 'no-cache',
       'Connection': 'keep-alive'
     });
 
     fileStream.pipe(res);
 
-    // Cancel disk stream immediately if user seeks or closes tab
     res.on('close', () => {
-      try {
-        fileStream.destroy();
-      } catch {}
+      try { fileStream.destroy(); } catch {}
     });
 
     fileStream.on('error', (err) => {
-      console.error('[Stream] Disk stream error:', err.message);
       try {
         if (!res.headersSent) res.status(500).end();
         else res.end();
       } catch {}
     });
   } else {
-    // Non-range request: serve initial 16MB slice with HTTP 206 so player knows range seeking is supported
-    const end = Math.min(16 * 1024 * 1024 - 1, fileSize - 1);
-    const chunkSize = end + 1;
-
-    res.writeHead(206, {
-      'Content-Range': `bytes 0-${end}/${fileSize}`,
-      'Accept-Ranges': 'bytes',
-      'Content-Length': chunkSize,
-      'Content-Type': contentType,
-      'Cache-Control': 'no-cache, no-store'
-    });
-
-    const fileStream = fs.createReadStream(filePath, { start: 0, end });
-    fileStream.on('error', (err) => {
-      if (err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.code === 'EPIPE') return;
-      console.warn('[Stream] Disk stream error:', err.message);
-    });
-    fileStream.pipe(res);
-
-    res.on('close', () => {
-      try {
-        fileStream.destroy();
-      } catch {}
-    });
-  }
-}
-
-/**
- * Streams directly from active WebTorrent swarm pieces before/during download
- * with on-demand piece prioritization, bounded chunk requests, and zero-latency seeking.
- */
-export function handleWebTorrentStream(req, res, file, torrent = null) {
-  const torrentObj = torrent || file._torrent;
-  const fileSize = file.length;
-  const range = req.headers.range;
-  const contentType = getMediaMimeType(file.name);
-
-  // Guard response object against aborted sockets
-  res.on('error', () => {});
-
-  if (req.method === 'HEAD') {
     res.writeHead(200, {
       'Accept-Ranges': 'bytes',
       'Content-Length': fileSize,
       'Content-Type': contentType,
       'Cache-Control': 'no-cache'
     });
-    return res.end();
-  }
 
-  if (range) {
-    const parts = range.replace(/bytes=/, '').split('-');
-    const start = parseInt(parts[0], 10);
-
-    if (isNaN(start) || start >= fileSize) {
-      res.status(416).set('Content-Range', `bytes */${fileSize}`);
-      return res.end();
-    }
-
-    // Dynamic Chunk Slicing for Low Latency and Fast Seeking:
-    // Cap unbounded requests to 12MB so WebTorrent doesn't choke trying to download gigabytes at once
-    const MAX_CHUNK_SIZE = 12 * 1024 * 1024;
-    let end = parts[1] ? parseInt(parts[1], 10) : (start + MAX_CHUNK_SIZE - 1);
-    if (isNaN(end) || end >= fileSize) {
-      end = fileSize - 1;
-    }
-    if (end < start) end = start;
-
-    // Prioritize swarm pieces for the exact requested seek offset!
-    if (torrentObj) {
-      prioritizeStreamPieces(torrentObj, file, start);
-    }
-
-    const chunkSize = (end - start) + 1;
-    res.writeHead(206, {
-      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-      'Accept-Ranges': 'bytes',
-      'Content-Length': chunkSize,
-      'Content-Type': contentType,
-      'Cache-Control': 'no-cache, no-store',
-      'Connection': 'keep-alive'
-    });
-
-    const stream = file.createReadStream({ start, end, highWaterMark: 8 * 1024 * 1024 });
-
-    // Sliding critical piece window to proactively prefetch upcoming chunks from swarm
-    if (torrentObj && typeof torrentObj.critical === 'function') {
-      const pieceLength = torrentObj.pieceLength || (1024 * 1024);
-      const startP = Math.floor((file.offset + start) / pieceLength);
-      const endP = Math.floor((file.offset + end) / pieceLength);
-      let currentMark = startP;
-      
-      stream.on('data', () => {
-        const bytesRead = stream.bytesRead || 0;
-        const currentPiece = Math.floor((file.offset + start + bytesRead) / pieceLength);
-        if (currentPiece > currentMark + 4) {
-          currentMark = currentPiece;
-          try {
-            torrentObj.critical(currentMark, Math.min(currentMark + 40, endP));
-          } catch {}
-        }
-      });
-    }
-    
-    // Attach error handler BEFORE pipe to catch premature close safely
-    stream.on('error', (err) => {
-      if (err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.code === 'EPIPE' || err?.message?.includes('closed')) {
-        return; // Normal client seek or connection termination
-      }
-      console.warn('[Stream] WebTorrent stream error:', err.message);
-      try {
-        if (!res.headersSent) res.status(500).end();
-        else res.end();
-      } catch {}
-    });
-
-    stream.pipe(res);
-
-    // Abort stream cleanly when client seeks or closes socket
-    res.on('close', () => {
-      try {
-        if (stream && typeof stream.destroy === 'function') {
-          stream.destroy();
-        }
-      } catch {}
-    });
-  } else {
-    // Initial probe or non-range request: serve first chunk (first 12MB)
-    const end = Math.min(12 * 1024 * 1024 - 1, fileSize - 1);
-    if (torrentObj) {
-      prioritizeStreamPieces(torrentObj, file, 0);
-    }
-
-    res.writeHead(206, {
-      'Content-Range': `bytes 0-${end}/${fileSize}`,
-      'Accept-Ranges': 'bytes',
-      'Content-Length': end + 1,
-      'Content-Type': contentType,
-      'Cache-Control': 'no-cache, no-store'
-    });
-
-    const stream = file.createReadStream({ start: 0, end });
-    
-    stream.on('error', (err) => {
-      if (err?.code === 'PREMULTURE_CLOSE' || err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.message?.includes('closed')) {
-        return;
-      }
-      console.warn('[Stream] WebTorrent initial stream error:', err.message);
-    });
-
-    stream.pipe(res);
+    const fileStream = fs.createReadStream(filePath, { highWaterMark: 1024 * 1024 });
+    fileStream.pipe(res);
 
     res.on('close', () => {
-      try {
-        if (stream && typeof stream.destroy === 'function') {
-          stream.destroy();
-        }
-      } catch {}
+      try { fileStream.destroy(); } catch {}
     });
   }
 }
 
 /**
+ * Streams directly from active WebTorrent swarm pieces
+ */
+export function handleWebTorrentStream(req, res, file, torrent = null) {
+  const torrentObj = torrent || file._torrent;
+  return handleFileStream(req, res, torrentObj, file.path || file.name, false);
+}
+
+/**
  * Optional FFmpeg transcode pipeline for .mkv with AC3/DTS audio to AAC
- * Copies video stream (-c:v copy) with zero CPU overhead, only transcoding audio to AAC.
- * Supports seeking via ?ss=<seconds> or ?start=<seconds>.
  */
 export async function handleFfmpegRemuxStream(req, res, inputPath) {
   const ffmpegOk = await checkFfmpeg();
   if (!ffmpegOk) {
-    // Fallback to standard range stream
     return handleMediaStream(req, res, inputPath);
   }
 
@@ -357,7 +352,7 @@ export async function handleFfmpegRemuxStream(req, res, inputPath) {
   const proc = spawn('ffmpeg', ffmpegArgs);
   proc.stdout.pipe(res);
 
-  proc.stderr.on('data', () => {}); // silence verbose logs
+  proc.stderr.on('data', () => {});
   res.on('close', () => {
     try {
       proc.kill('SIGKILL');

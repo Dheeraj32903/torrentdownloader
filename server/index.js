@@ -6,7 +6,7 @@ import cors from 'cors';
 import multer from 'multer';
 import { WebSocketServer, WebSocket } from 'ws';
 import { TorrentManager } from './torrentManager.js';
-import { handleMediaStream, handleWebTorrentStream, handleFfmpegRemuxStream, srtToVtt, findSubtitles } from './streamHandler.js';
+import { handleFileStream, handleMediaStream, handleWebTorrentStream, handleFfmpegRemuxStream, srtToVtt, findSubtitles } from './streamHandler.js';
 import { handleDirectDownload, streamFolderAsZip, generateAria2InputFile, listDirectoryContents, getDiskStats, formatBytes, resolveFilePath } from './fileManager.js';
 import { extractArchive } from './extractor.js';
 
@@ -126,12 +126,52 @@ setInterval(() => {
   }
 }, 1000);
 
+// 15-second WebSocket ping/pong keep-alive to prevent silent timeouts
+const pingInterval = setInterval(() => {
+  for (const client of wss.clients) {
+    if (client.isAlive === false) {
+      client.terminate();
+      continue;
+    }
+    client.isAlive = false;
+    client.ping();
+  }
+}, 15000);
+
+wss.on('close', () => {
+  clearInterval(pingInterval);
+});
+
 wss.on('connection', (ws) => {
+  ws.isAlive = true;
+  ws.on('pong', () => {
+    ws.isAlive = true;
+  });
+
   console.log('[WS] Client connected');
-  // Send immediate state
+  // Send immediate state on connection
   const torrents = torrentManager.getAllTorrents();
   const disk = getDiskStats(DOWNLOADS_DIR);
-  ws.send(JSON.stringify({ type: 'init', data: { torrents, disk } }));
+  let totalDownSpeed = 0;
+  let totalUpSpeed = 0;
+  for (const t of torrents) {
+    totalDownSpeed += (t.downloadSpeed || 0);
+    totalUpSpeed += (t.uploadSpeed || 0);
+  }
+
+  ws.send(JSON.stringify({ 
+    type: 'init', 
+    data: { 
+      torrents, 
+      disk,
+      speeds: {
+        download: totalDownSpeed,
+        downloadFormatted: `${formatBytes(totalDownSpeed)}/s`,
+        upload: totalUpSpeed,
+        uploadFormatted: `${formatBytes(totalUpSpeed)}/s`
+      }
+    } 
+  }));
 
   ws.on('close', () => {
     // client disconnected
@@ -346,32 +386,24 @@ app.get('/api/stream-playlist/:hash', (req, res) => {
   res.send(content);
 });
 
-// Stream Video / Audio with HTTP 206 Partial Content (WebTorrent Swarm + Disk Cache)
-app.get('/api/stream/:hash', async (req, res) => {
-  const { hash } = req.params;
-  const relPath = req.query.file;
-  if (!relPath) return res.status(400).json({ error: 'Query param "file" is required' });
+// Helper to resolve torrent object and stream file via dual-path engine
+async function resolveAndStream(req, res, isDownload) {
+  const { hash, fileIndex } = req.params;
+  const fileIdentifier = fileIndex !== undefined ? fileIndex : req.query.file;
 
   const meta = torrentManager.torrentsMap.get(hash);
-  if (!meta) {
+  const activeTorrent = torrentManager.getActiveTorrent(hash);
+
+  if (!meta && !activeTorrent) {
     return res.status(404).json({ error: 'Torrent not found' });
   }
 
-  // Parse byte offset if range header is present
-  let seekByte = 0;
-  if (req.headers.range) {
-    const parts = req.headers.range.replace(/bytes=/, '').split('-');
-    seekByte = parseInt(parts[0], 10) || 0;
-  }
-
-  const activeTorrent = torrentManager.getActiveTorrent(hash);
-
-  // If active torrent is still discovering peers & resolving metadata, wait up to 12s for handshake
+  // If active torrent is still discovering peers & resolving metadata, wait up to 10s
   if (activeTorrent && (!activeTorrent.files || activeTorrent.files.length === 0)) {
-    console.log(`[Stream] Waiting for swarm metadata for ${meta.name || hash}...`);
+    console.log(`[Stream] Waiting for swarm metadata for ${meta?.name || hash}...`);
     await new Promise((resolve) => {
       const onMeta = () => { cleanup(); resolve(true); };
-      const timer = setTimeout(() => { cleanup(); resolve(false); }, 12000);
+      const timer = setTimeout(() => { cleanup(); resolve(false); }, 10000);
       const cleanup = () => {
         clearTimeout(timer);
         activeTorrent.off('metadata', onMeta);
@@ -380,55 +412,51 @@ app.get('/api/stream/:hash', async (req, res) => {
     });
   }
 
-  const isComplete = meta.status === 'completed' || (activeTorrent && activeTorrent.done);
-
-  // 1. If torrent is actively downloading in WebTorrent swarm:
-  // MUST stream through WebTorrent so pieces at seek location are downloaded on-demand from peers!
-  if (!isComplete && activeTorrent && activeTorrent.files && activeTorrent.files.length > 0) {
-    const norm = relPath.replace(/\\/g, '/');
-    const file = activeTorrent.files.find(f => 
-      f.path.replace(/\\/g, '/') === norm ||
-      f.name === path.basename(norm) ||
-      norm.endsWith(f.name)
-    );
-
-    if (file) {
-      torrentManager.prioritizeForStreaming(hash, file.path, seekByte);
-      return handleWebTorrentStream(req, res, file, activeTorrent);
-    }
+  // Build unified torrent object
+  let torrentObj = activeTorrent;
+  // If activeTorrent has no files yet, but meta has files, fallback to meta.files!
+  if ((!torrentObj || !torrentObj.files || torrentObj.files.length === 0) && meta && meta.files && meta.files.length > 0) {
+    const isDone = meta.status === 'completed' || meta.status === 'ready' || (meta.progress >= 1);
+    torrentObj = {
+      path: path.join(DOWNLOADS_DIR, meta.name || hash),
+      done: isDone,
+      pieceLength: activeTorrent?.pieceLength || 1024 * 1024,
+      files: (meta.files || []).map((f, i) => ({
+        index: i,
+        name: f.name,
+        path: f.path || f.name,
+        length: f.size || f.length || 0,
+        progress: isDone ? 1 : (f.progress || 0),
+        select: () => {},
+        deselect: () => {},
+        createReadStream: (opts) => {
+          const filePath = resolveFilePath(DOWNLOADS_DIR, meta, f.path || f.name);
+          if (fs.existsSync(filePath)) {
+            return fs.createReadStream(filePath, opts);
+          }
+          if (activeTorrent && activeTorrent.files && activeTorrent.files[i]) {
+            return activeTorrent.files[i].createReadStream(opts);
+          }
+          return fs.createReadStream(filePath, opts);
+        }
+      }))
+    };
   }
 
-  // 2. If completed or extracted file on disk:
-  const targetFile = resolveFilePath(DOWNLOADS_DIR, meta, relPath);
-  if (targetFile && fs.existsSync(targetFile) && fs.statSync(targetFile).size > 0) {
-    if (req.query.remux === 'true') {
+  return handleFileStream(req, res, torrentObj, fileIdentifier, isDownload);
+}
+
+// Stream Video / Audio with HTTP 206 Partial Content (Supports Range, HEAD, Swarm & Disk)
+app.all(['/api/stream/:hash/:fileIndex', '/api/stream/:hash'], async (req, res) => {
+  if (req.query.remux === 'true') {
+    const { hash } = req.params;
+    const meta = torrentManager.torrentsMap.get(hash);
+    const targetFile = resolveFilePath(DOWNLOADS_DIR, meta, req.query.file || '');
+    if (targetFile && fs.existsSync(targetFile)) {
       return handleFfmpegRemuxStream(req, res, targetFile);
     }
-    return handleMediaStream(req, res, targetFile);
   }
-
-  // 3. Fallback: stream through active swarm if file exists
-  if (activeTorrent && activeTorrent.files && activeTorrent.files.length > 0) {
-    const norm = relPath.replace(/\\/g, '/');
-    const file = activeTorrent.files.find(f => 
-      f.path.replace(/\\/g, '/') === norm ||
-      f.name === path.basename(norm)
-    );
-    if (file) {
-      torrentManager.prioritizeForStreaming(hash, file.path, seekByte);
-      return handleWebTorrentStream(req, res, file, activeTorrent);
-    }
-  }
-
-  // If still resolving metadata from swarm
-  if (activeTorrent && (!activeTorrent.files || activeTorrent.files.length === 0)) {
-    return res.status(503).json({
-      error: 'Connecting to swarm peers to fetch metadata... Please wait a few moments and try again.',
-      retryAfter: 5
-    });
-  }
-
-  return res.status(404).json({ error: 'File not found on disk or in active stream' });
+  return resolveAndStream(req, res, false);
 });
 
 // Subtitles list & WebVTT conversion
@@ -473,152 +501,9 @@ app.get('/api/video-subtitles/:hash', (req, res) => {
   res.json({ subtitles: subs });
 });
 
-// Direct Download File (Dual-Mode: Maximum Gigabit speed from disk if complete, or Live Swarm streaming)
-app.get('/api/download/:hash', (req, res) => {
-  const { hash } = req.params;
-  const relPath = req.query.file;
-  if (!relPath) return res.status(400).json({ error: 'Query param "file" is required' });
-
-  const meta = torrentManager.torrentsMap.get(hash);
-  if (!meta) return res.status(404).json({ error: 'Torrent not found' });
-
-  const activeTorrent = torrentManager.getActiveTorrent(hash);
-  const isComplete = meta.status === 'completed' || (activeTorrent && activeTorrent.done);
-
-  // 1. If completed or extracted on disk: Serve directly from disk with instant gigabit speed & Range resume
-  if (isComplete) {
-    const targetFile = resolveFilePath(DOWNLOADS_DIR, meta, relPath);
-    if (targetFile && fs.existsSync(targetFile)) {
-      return handleDirectDownload(req, res, targetFile, path.basename(targetFile));
-    }
-  }
-
-  // 2. If actively downloading in swarm: Stream download directly from WebTorrent pieces
-  if (activeTorrent && activeTorrent.files && activeTorrent.files.length > 0) {
-    const norm = relPath.replace(/\\/g, '/');
-    const file = activeTorrent.files.find(f => 
-      f.path.replace(/\\/g, '/') === norm ||
-      f.name === path.basename(norm) ||
-      norm.endsWith(f.name)
-    );
-
-    if (file) {
-      const fileName = file.name || path.basename(relPath);
-      const safeFilename = encodeURIComponent(fileName).replace(/['()]/g, escape).replace(/\*/g, '%2A');
-      const fileSize = file.length;
-      const range = req.headers.range;
-
-      if (range) {
-        const parts = range.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-
-        if (isNaN(start) || start >= fileSize) {
-          res.status(416).set('Content-Range', `bytes */${fileSize}`);
-          return res.end();
-        }
-
-        const chunkSize = (end - start) + 1;
-        res.writeHead(206, {
-          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-          'Accept-Ranges': 'bytes',
-          'Content-Length': chunkSize,
-          'Content-Type': 'application/octet-stream',
-          'Content-Disposition': `attachment; filename="${fileName}"; filename*=UTF-8''${safeFilename}`,
-          'Cache-Control': 'no-cache'
-        });
-
-        res.on('error', () => {});
-
-        file.select();
-        const pieceLength = activeTorrent.pieceLength || (1024 * 1024);
-        const startPiece = Math.floor((file.offset + start) / pieceLength);
-        const endPiece = Math.floor((file.offset + end) / pieceLength);
-        
-        // Turbo Swarm Burst: Mark 60 pieces ahead as critical so all peers upload simultaneously!
-        activeTorrent.critical(startPiece, Math.min(startPiece + 60, endPiece));
-
-        const stream = file.createReadStream({ 
-          start, 
-          end,
-          highWaterMark: 8 * 1024 * 1024 // 8 MB read-ahead buffer
-        });
-
-        let currentCritMark = startPiece;
-        stream.on('data', () => {
-          const bytesRead = stream.bytesRead || 0;
-          const currentP = Math.floor((file.offset + start + bytesRead) / pieceLength);
-          if (currentP > currentCritMark + 6) {
-            currentCritMark = currentP;
-            activeTorrent.critical(currentCritMark, Math.min(currentCritMark + 60, endPiece));
-          }
-        });
-
-        stream.on('error', (err) => {
-          if (err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.message?.includes('closed')) return;
-          console.warn('[Download] Swarm stream error:', err.message);
-        });
-        stream.pipe(res);
-        res.on('close', () => { try { stream.destroy(); } catch {} });
-        return;
-      } else {
-        res.writeHead(200, {
-          'Content-Length': fileSize,
-          'Accept-Ranges': 'bytes',
-          'Content-Type': 'application/octet-stream',
-          'Content-Disposition': `attachment; filename="${fileName}"; filename*=UTF-8''${safeFilename}`,
-          'Cache-Control': 'no-cache'
-        });
-
-        res.on('error', () => {});
-
-        file.select();
-        const pieceLength = activeTorrent.pieceLength || (1024 * 1024);
-        const startPiece = Math.floor(file.offset / pieceLength);
-        const endPiece = Math.floor((file.offset + fileSize - 1) / pieceLength);
-
-        // Turbo Swarm Burst: Mark 60 pieces ahead as critical so all peers upload simultaneously!
-        activeTorrent.critical(startPiece, Math.min(startPiece + 60, endPiece));
-
-        const stream = file.createReadStream({
-          highWaterMark: 8 * 1024 * 1024 // 8 MB read-ahead buffer
-        });
-
-        let currentCritMark = startPiece;
-        stream.on('data', () => {
-          const bytesRead = stream.bytesRead || 0;
-          const currentP = Math.floor((file.offset + bytesRead) / pieceLength);
-          if (currentP > currentCritMark + 6) {
-            currentCritMark = currentP;
-            activeTorrent.critical(currentCritMark, Math.min(currentCritMark + 60, endPiece));
-          }
-        });
-
-        stream.on('error', (err) => {
-          if (err?.code === 'PREMATURE_CLOSE' || err?.code === 'ECONNRESET' || err?.message?.includes('closed')) return;
-          console.warn('[Download] Swarm stream error:', err.message);
-        });
-        stream.pipe(res);
-        res.on('close', () => { try { stream.destroy(); } catch {} });
-        return;
-      }
-    }
-  }
-
-  // 3. Fallback: Check if file exists on disk
-  const targetFile = resolveFilePath(DOWNLOADS_DIR, meta, relPath);
-  if (targetFile && fs.existsSync(targetFile)) {
-    return handleDirectDownload(req, res, targetFile, path.basename(targetFile));
-  }
-
-  // 4. If metadata is still resolving
-  if (activeTorrent && (!activeTorrent.files || activeTorrent.files.length === 0)) {
-    return res.status(503).json({
-      error: 'Connecting to swarm peers to fetch metadata... Please wait a few seconds and try downloading again.'
-    });
-  }
-
-  return res.status(404).json({ error: 'File not found on disk or in active stream' });
+// Direct Download File (Dual-Path: Maximum Gigabit disk speed or Live Swarm Range Streaming)
+app.all(['/api/download/:hash/:fileIndex', '/api/download/:hash'], async (req, res) => {
+  return resolveAndStream(req, res, true);
 });
 
 // Download entire Torrent/Folder as ZIP (On-the-fly streaming)

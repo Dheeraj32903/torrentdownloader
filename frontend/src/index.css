@@ -1,183 +1,158 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 :root {
-  /* Product UI Styleguide Tokens */
-  --primary-blue: #0066FF;
-  --primary-blue-hover: #0052CC;
-  --primary-blue-active: #0040A8;
-  --primary-blue-soft: #EBF2FF;
+  --color-primary: #2563EB;
+  --color-primary-hover: #1D4ED8;
+  --color-primary-active: #1E40AF;
   
-  --surface: #FFFFFF;
-  --background: #F0F3F8;
-  --text-primary: #0D0F1C;
-  --text-secondary: #646E82;
-  --text-muted: #8F9CAE;
-  --border-color: #E0E4EC;
-  --border-hover: #C4CBD8;
-  --focus-ring: #B8D0FF;
+  --color-surface: #FFFFFF;
+  --color-background: #F8FAFC;
+  --color-border: #E2E8F0;
+  --color-border-hover: #CBD5E1;
+  
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #64748B;
+  --color-text-muted: #94A3B8;
 
-  --status-emerald: #059669;
-  --status-amber: #D97706;
-  --status-rose: #E11D48;
-
-  --font-mono: 'Space Mono', 'JetBrains Mono', monospace;
-  --font-sans: 'Space Mono', 'JetBrains Mono', monospace;
-  --font-display: 'Space Mono', monospace;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 body {
-  background-color: var(--background);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
+  background-color: #F8FAFC;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.28) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-attachment: fixed;
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
 }
 
-/* Tabular numbers for non-jittering metrics */
+/* Typography tokens */
+.font-sans {
+  font-family: var(--font-sans);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Non-jittering tabular numeric metrics */
 .mono-stat {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
 
-/* Product UI Styleguide Cards (Level 1 Elevation) */
-.ui-card {
-  background: var(--surface);
-  border: 1px solid var(--border-color);
+/* Elevation Levels (Image 2 Styleguide) */
+.elevation-0 {
+  border: 1px solid var(--color-border);
+}
+
+.elevation-1 {
+  border: 1px solid var(--color-border);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+}
+
+.elevation-2 {
+  border: 1px solid var(--color-border);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+}
+
+.elevation-3 {
+  border: 1px solid var(--color-border);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.03);
+}
+
+/* Clean Product Surface Cards */
+.product-card {
+  background-color: #FFFFFF;
+  border: 1px solid var(--color-border);
   border-radius: 16px;
-  box-shadow: 0 1px 3px 0 rgba(13, 15, 28, 0.04), 0 2px 6px -1px rgba(13, 15, 28, 0.03);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.ui-card:hover {
-  border-color: var(--border-hover);
-  box-shadow: 0 4px 14px -2px rgba(13, 15, 28, 0.08), 0 2px 4px -1px rgba(13, 15, 28, 0.04);
+.product-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
 }
 
-.ui-card-highlight {
-  border-color: var(--primary-blue);
-  box-shadow: 0 0 0 1px var(--primary-blue), 0 6px 18px -3px rgba(0, 102, 255, 0.12);
-}
-
-/* Bracketed Primary Action Button: [ BUTTON ] */
+/* Clean Buttons (Image 2 Styleguide) */
 .btn-primary {
-  background: var(--primary-blue);
-  color: #FFFFFF;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  border-radius: 8px;
-  border: 1px solid var(--primary-blue-hover);
-  box-shadow: 0 1px 3px 0 rgba(0, 102, 255, 0.3);
-  transition: all 0.12s ease;
-  letter-spacing: -0.01em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px 0 rgba(37, 99, 235, 0.2);
+  transition: all 0.15s ease;
+  cursor: pointer;
 }
 
 .btn-primary:hover {
-  background: var(--primary-blue-hover);
-  box-shadow: 0 3px 8px 0 rgba(0, 102, 255, 0.4);
-  transform: translateY(-1px);
+  background-color: var(--color-primary-hover);
+  box-shadow: 0 4px 12px 0 rgba(37, 99, 235, 0.3);
 }
 
 .btn-primary:active {
-  background: var(--primary-blue-active);
+  background-color: var(--color-primary-active);
   transform: translateY(1px);
-  box-shadow: 0 1px 2px 0 rgba(0, 102, 255, 0.2);
 }
 
-/* Bracketed Secondary Action Button */
 .btn-secondary {
-  background: var(--surface);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-weight: 700;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 1px 2px 0 rgba(13, 15, 28, 0.04);
-  transition: all 0.12s ease;
-  letter-spacing: -0.01em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
+  background-color: #FFFFFF;
+  color: #1E293B;
+  border: 1px solid var(--color-border);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  transition: all 0.15s ease;
+  cursor: pointer;
 }
 
 .btn-secondary:hover {
-  background: #F8FAFC;
-  border-color: var(--border-hover);
-  box-shadow: 0 2px 5px 0 rgba(13, 15, 28, 0.08);
-  transform: translateY(-1px);
+  background-color: #F8FAFC;
+  border-color: var(--color-border-hover);
+  color: #0F172A;
 }
 
 .btn-secondary:active {
+  background-color: #F1F5F9;
   transform: translateY(1px);
-  box-shadow: 0 1px 1px 0 rgba(13, 15, 28, 0.04);
 }
 
-/* Technical Inputs */
-.ui-input {
-  background: var(--surface);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  box-shadow: 0 1px 2px 0 rgba(13, 15, 28, 0.03);
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
   transition: all 0.15s ease;
+  cursor: pointer;
 }
 
-.ui-input:focus,
-.ui-input:focus-within {
-  border-color: var(--primary-blue);
-  box-shadow: 0 0 0 3px var(--focus-ring);
-  outline: none;
-}
-
-/* Parenthesis Action Chips: ( READY 100% ) */
-.chip-retro {
-  background: var(--surface);
-  border: 1px solid var(--border-color);
-  border-radius: 9999px;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  color: var(--text-primary);
-  box-shadow: 0 1px 2px 0 rgba(13, 15, 28, 0.03);
-  display: inline-flex;
-  align-items: center;
-}
-
-.chip-retro-blue {
-  background: var(--primary-blue-soft);
-  border: 1px solid #B8D0FF;
-  border-radius: 9999px;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  color: var(--primary-blue);
-  display: inline-flex;
-  align-items: center;
-}
-
-.chip-retro-green {
-  background: #ECFDF5;
-  border: 1px solid #A7F3D0;
-  border-radius: 9999px;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  color: #059669;
-  display: inline-flex;
-  align-items: center;
-}
-
-.chip-retro-amber {
-  background: #FFFBEB;
-  border: 1px solid #FDE68A;
-  border-radius: 9999px;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  color: #D97706;
-  display: inline-flex;
-  align-items: center;
+.btn-ghost:hover {
+  background-color: #F1F5F9;
+  color: var(--color-text-primary);
 }
 
 /* Custom Scrollbar */
@@ -186,12 +161,12 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #F0F3F8;
+  background: #F1F5F9;
 }
 ::-webkit-scrollbar-thumb {
-  background: #C4CBD8;
+  background: #CBD5E1;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #8F9CAE;
+  background: #94A3B8;
 }

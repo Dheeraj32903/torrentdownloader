@@ -28,19 +28,12 @@ export class TorrentManager {
 
   initClient() {
     this.client = new WebTorrent({
-      maxConns: 250, // Optimal peer connections per swarm without router NAT congestion
-      dht: {
-        bootstrap: [
-          'router.bittorrent.com:6881',
-          'router.utorrent.com:6881',
-          'dht.transmissionbt.com:6881',
-          'dht.libtorrent.org:25401',
-          'router.silotis.us:6881'
-        ]
-      },
-      tracker: true,
+      maxConns: 200, // Connect up to 200 peers simultaneously
+      dht: true,
+      lsd: true,
+      webSeeds: true,
       utp: true,
-      webSeeds: true
+      tracker: true
     });
 
     this.client.on('error', (err) => {
@@ -301,7 +294,10 @@ export class TorrentManager {
       if (torrent.files && torrent.files.length > 0) {
         meta.files = torrent.files.map((f, idx) => {
           const cat = getFileCategory(f.name);
-          const isSample = /sample/i.test(f.name) && f.length < 75 * 1024 * 1024;
+          // Auto-skip junk (.txt, .nfo, .url, .exe, .html, .htm, .lnk, and sample videos < 60MB)
+          const isJunk = /\.(txt|nfo|url|exe|html|htm|lnk)$/i.test(f.name) ||
+            (/sample/i.test(f.name) && f.length < 60 * 1024 * 1024);
+
           return {
             index: idx,
             name: f.name,
@@ -313,11 +309,11 @@ export class TorrentManager {
             isArchive: !!isArchive(f.name),
             isStreamable: cat === 'video' || cat === 'audio',
             progress: f.progress,
-            selected: meta.selectedIndices ? meta.selectedIndices.includes(idx) : !isSample
+            selected: meta.selectedIndices ? meta.selectedIndices.includes(idx) : !isJunk
           };
         });
 
-        // Apply selections if saved, otherwise apply defaults (suppress junk samples)
+        // Apply selections (skip junk files automatically)
         if (meta.selectedIndices) {
           this.applyFileSelections(torrent, meta.selectedIndices);
         } else {
@@ -325,12 +321,17 @@ export class TorrentManager {
           this.applyFileSelections(torrent, activeIndices);
         }
 
-        // Auto-prioritize container header pieces for the primary video file
+        // Auto-prioritize first 20 pieces and last 3 pieces for the largest video file
         const videoFiles = torrent.files.filter(f => /\.(mp4|mkv|webm|avi|mov)$/i.test(f.name));
-        if (videoFiles.length > 0) {
+        if (videoFiles.length > 0 && torrent.pieceLength) {
           const largestVideo = videoFiles.reduce((prev, curr) => (curr.length > prev.length ? curr : prev));
-          prioritizeStreamPieces(torrent, largestVideo, 0);
-          console.log(`[TorrentManager] Auto-prioritized streaming header pieces for primary video: ${largestVideo.name}`);
+          const startPiece = Math.floor(largestVideo.offset / torrent.pieceLength);
+          const endPiece = Math.floor((largestVideo.offset + largestVideo.length - 1) / torrent.pieceLength);
+          if (typeof torrent.critical === 'function') {
+            torrent.critical(startPiece, Math.min(startPiece + 20, endPiece));
+            torrent.critical(Math.max(startPiece, endPiece - 3), endPiece);
+          }
+          console.log(`[TorrentManager] Auto-prioritized pieces ${startPiece}..${Math.min(startPiece + 20, endPiece)} & ${Math.max(startPiece, endPiece - 3)}..${endPiece} for: ${largestVideo.name}`);
         }
       }
 
@@ -374,8 +375,12 @@ export class TorrentManager {
         if (!meta.name || meta.name.includes('Fetching metadata')) {
           meta.name = torrent.name || meta.name;
         }
-        if (torrent.done && meta.status === 'downloading') {
-          meta.status = 'completed';
+        if (meta.status !== 'paused') {
+          if (torrent.progress < 1) {
+            meta.status = 'downloading'; // Strict: NEVER extracting while progress < 1
+          } else if (torrent.done || torrent.progress >= 1) {
+            meta.status = meta.isExtracting ? 'extracting' : 'ready';
+          }
         }
       }
     });
@@ -384,13 +389,13 @@ export class TorrentManager {
       console.log(`[TorrentManager] Download COMPLETE: ${torrent.name}`);
       const key = torrent.infoHash || tempHash;
       const meta = this.torrentsMap.get(key) || metaRef;
-      meta.status = 'completed';
+      meta.status = 'ready';
       meta.progress = 1;
       meta.downloadSpeed = 0;
       this.saveState();
       this.notifyUpdate();
 
-      // Trigger Auto-Extraction via Worker Thread
+      // Trigger Auto-Extraction via Worker Thread ONLY if archives exist
       await this.triggerExtraction(torrent.infoHash || key, torrent.path, torrent.name);
     });
 
@@ -469,7 +474,22 @@ export class TorrentManager {
     const meta = this.torrentsMap.get(infoHash);
     if (!meta) return;
 
+    // A torrent MUST NEVER have status = 'extracting' while progress < 1
+    if (meta.progress < 1) {
+      return;
+    }
+
+    // Check if torrent actually contains archive files (.rar, .zip, .7z, .tar.gz)
+    const hasArchives = (meta.files || []).some(f => f.isArchive || isArchive(f.name || f.path));
     const targetDir = path.join(this.downloadDir, torrentName || meta.name);
+
+    if (!hasArchives && (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory())) {
+      meta.status = 'ready';
+      this.saveState();
+      this.notifyUpdate();
+      return;
+    }
+
     console.log(`[TorrentManager] Worker auto-extract check in: ${targetDir}`);
     
     meta.isExtracting = true;
@@ -483,7 +503,7 @@ export class TorrentManager {
       });
 
       meta.isExtracting = false;
-      meta.status = 'completed';
+      meta.status = 'ready';
       meta.extracted = result.extractedCount > 0;
       meta.extractedFiles = result.extractedArchives;
       meta.extractionErrors = result.errors;
@@ -496,7 +516,7 @@ export class TorrentManager {
     } catch (err) {
       console.error(`[TorrentManager] Extraction failed:`, err);
       meta.isExtracting = false;
-      meta.status = 'completed';
+      meta.status = 'ready';
       meta.extractionErrors = [{ error: err.message }];
       this.notifyUpdate();
       throw err;
@@ -813,8 +833,24 @@ export class TorrentManager {
       }
       meta.files = files;
 
+      // Strict lifecycle: metadata -> downloading -> extracting -> ready
+      let status = meta.status;
+      if (!activeTorrent && (!files || files.length === 0) && (!meta.name || meta.name.includes('Fetching metadata'))) {
+        status = 'metadata';
+      } else if (activeTorrent && !activeTorrent.ready && (!files || files.length === 0)) {
+        status = 'metadata';
+      } else if (status === 'paused') {
+        status = 'paused';
+      } else if (progress < 1) {
+        status = 'downloading'; // NEVER extracting while progress < 1
+      } else {
+        // progress >= 1
+        status = meta.isExtracting ? 'extracting' : 'ready';
+      }
+
       results.push({
         ...meta,
+        status,
         progress,
         downloadSpeed,
         uploadSpeed,

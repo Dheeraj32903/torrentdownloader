@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { 
   Link2, UploadCloud, Clipboard, Loader2, 
-  ArrowRight, X, Plus
+  X, Plus, Zap
 } from 'lucide-react';
 
 export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
@@ -45,29 +45,31 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
   };
 
   return (
-    <div className="relative max-w-[1200px] mx-auto px-4 w-full font-mono">
+    <div className="relative max-w-[1200px] mx-auto px-4 w-full">
       <form 
         onSubmit={handleSubmit}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleFileDrop}
-        className={`ui-card p-2 sm:p-2.5 transition-all flex items-center gap-2 ${
-          dragOver ? 'border-[#0066FF] bg-[#EBF2FF]/30 shadow-[0_0_0_3px_#B8D0FF]' : ''
+        className={`bg-white border rounded-2xl p-2 sm:p-2.5 transition-all flex items-center gap-2 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/15 ${
+          dragOver 
+            ? 'border-blue-500 bg-blue-50/50 ring-4 ring-blue-500/15' 
+            : 'border-slate-200/90 hover:border-slate-300'
         }`}
       >
         {/* Left Link Icon */}
-        <div className="w-9 h-9 rounded-xl bg-[#EBF2FF] text-[#0066FF] border border-[#B8D0FF] flex items-center justify-center shrink-0 ml-1">
+        <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0 ml-1">
           <Link2 className="w-4 h-4" />
         </div>
 
-        {/* Text Input */}
+        {/* Text Input with Human-Friendly Placeholder */}
         <input
           type="text"
           value={magnetInput}
           onChange={(e) => setMagnetInput(e.target.value)}
-          placeholder="[ Paste magnet URI (magnet:?xt=...) or drop .torrent ]"
+          placeholder="Paste magnet URI (magnet:?xt=...) or drop .torrent file..."
           disabled={isLoading}
-          className="w-full bg-transparent text-xs sm:text-sm text-[#0D0F1C] placeholder-[#8F9CAE] focus:outline-none px-2 font-mono"
+          className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none px-3 font-sans"
         />
 
         {/* Action Buttons */}
@@ -76,8 +78,8 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
             <button
               type="button"
               onClick={() => setMagnetInput('')}
-              className="p-1.5 text-[#646E82] hover:bg-slate-100 rounded-lg transition-colors"
-              title="Clear"
+              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              title="Clear input"
             >
               <X className="w-4 h-4" />
             </button>
@@ -86,21 +88,21 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
           <button
             type="button"
             onClick={handlePaste}
-            className="btn-secondary px-3.5 py-2 text-xs flex items-center gap-1.5 hidden sm:flex"
-            title="Paste from clipboard"
+            className="btn-secondary text-xs py-2 px-3 hidden sm:inline-flex"
+            title="Paste from clipboard (Ctrl+V)"
           >
-            <Clipboard className="w-3.5 h-3.5 text-[#646E82]" />
-            <span>[ PASTE ]</span>
+            <Clipboard className="w-3.5 h-3.5 text-slate-500" />
+            <span>Paste</span>
           </button>
 
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="btn-secondary px-3.5 py-2 text-xs flex items-center gap-1.5"
+            className="btn-secondary text-xs py-2 px-3"
             title="Upload .torrent file"
           >
-            <UploadCloud className="w-3.5 h-3.5 text-[#646E82]" />
-            <span className="hidden sm:inline">[ .TORRENT ]</span>
+            <UploadCloud className="w-3.5 h-3.5 text-slate-500" />
+            <span className="hidden sm:inline">.torrent</span>
           </button>
 
           <input
@@ -114,17 +116,17 @@ export default function HeroInput({ onAddMagnet, onUploadTorrent, isLoading }) {
           <button
             type="submit"
             disabled={!magnetInput.trim() || isLoading}
-            className="btn-primary px-4 sm:px-5 py-2 text-xs sm:text-sm flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="btn-primary text-xs sm:text-sm py-2 px-4 sm:px-5 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isLoading ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                <span>[ ADDING... ]</span>
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <span>Adding...</span>
               </>
             ) : (
               <>
-                <Plus className="w-3.5 h-3.5 text-white" />
-                <span>[ + ADD ]</span>
+                <Plus className="w-4 h-4 text-white" />
+                <span>Add Torrent</span>
               </>
             )}
           </button>
