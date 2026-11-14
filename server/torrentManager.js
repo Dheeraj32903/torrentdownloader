@@ -3,7 +3,7 @@ import path from 'node:path';
 import WebTorrent from 'webtorrent';
 import { enhanceMagnet, parseMagnetQuick, getCachedTrackers } from './trackers.js';
 import { autoExtractTorrent, isArchive } from './extractor.js';
-import { formatBytes, listDirectoryContents, getFileCategory, hasSufficientDiskSpace } from './fileManager.js';
+import { formatBytes, listDirectoryContents, getFileCategory, hasSufficientDiskSpace, enforceStorageQuota } from './fileManager.js';
 import { prioritizeStreamPieces } from './streamHandler.js';
 
 export class TorrentManager {
@@ -38,8 +38,14 @@ export class TorrentManager {
       '82.221.103.244:6881'
     ];
 
+    const torrentPort = Number(process.env.TORRENT_PORT) || 51413;
+    const dhtPort = Number(process.env.DHT_PORT) || 6881;
+    const maxConns = Number(process.env.MAX_CONNS) || 150;
+
     this.client = new WebTorrent({
-      maxConns: 250, // Connect up to 250 peers simultaneously across swarm
+      maxConns,
+      torrentPort,
+      dhtPort,
       dht: {
         bootstrap: bootstrapNodes
       },
@@ -151,6 +157,9 @@ export class TorrentManager {
    * Adds a torrent via Magnet link or torrent file Buffer with instant optimistic response
    */
   async addTorrent(source, customName = null) {
+    // 1. Enforce LRU Storage Quota before adding new torrent
+    await enforceStorageQuota(this.downloadDir, this);
+
     let torrentId = source;
     let magnetURI = null;
     let infoHash = null;
@@ -341,17 +350,19 @@ export class TorrentManager {
           this.applyFileSelections(torrent, activeIndices);
         }
 
-        // Auto-prioritize first 20 pieces and last 3 pieces for the largest video file
+        // Full-File Sequential Piece Selection on primary media
         const videoFiles = torrent.files.filter(f => /\.(mp4|mkv|webm|avi|mov)$/i.test(f.name));
         if (videoFiles.length > 0 && torrent.pieceLength) {
           const largestVideo = videoFiles.reduce((prev, curr) => (curr.length > prev.length ? curr : prev));
           const startPiece = Math.floor(largestVideo.offset / torrent.pieceLength);
           const endPiece = Math.floor((largestVideo.offset + largestVideo.length - 1) / torrent.pieceLength);
+          
+          largestVideo.select();
           if (typeof torrent.critical === 'function') {
-            torrent.critical(startPiece, Math.min(startPiece + 20, endPiece));
+            torrent.critical(startPiece, Math.min(startPiece + 25, endPiece));
             torrent.critical(Math.max(startPiece, endPiece - 3), endPiece);
           }
-          console.log(`[TorrentManager] Auto-prioritized pieces ${startPiece}..${Math.min(startPiece + 20, endPiece)} & ${Math.max(startPiece, endPiece - 3)}..${endPiece} for: ${largestVideo.name}`);
+          console.log(`[TorrentManager] Sequentially prioritized piece window ${startPiece}..${Math.min(startPiece + 25, endPiece)} & ${Math.max(startPiece, endPiece - 3)}..${endPiece} for: ${largestVideo.name}`);
         }
       }
 

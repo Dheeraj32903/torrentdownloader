@@ -97,6 +97,12 @@ export function prioritizeStreamPieces(torrent, file, byteStart = 0) {
  * Serves both /api/download and /api/stream endpoints with zero memory leaks and maximum disk/swarm throughput.
  */
 export function handleFileStream(req, res, torrent, fileIdentifier, isDownload = false) {
+  // Eliminate TCP delay for streaming / downloading
+  if (req.socket) {
+    req.socket.setNoDelay(true);
+    req.socket.setKeepAlive(true, 30000);
+  }
+
   if (!torrent) {
     return res.status(404).json({ error: 'Torrent not found' });
   }
@@ -183,11 +189,11 @@ export function handleFileStream(req, res, torrent, fileIdentifier, isDownload =
   let stream;
   try {
     if (isCompleteOnDisk) {
-      // PATH A: Fast native OS disk stream (1MB chunks, zero WebTorrent overhead)
+      // PATH A: Fast native OS disk stream (4MB chunks for maximum network throughput)
       stream = fs.createReadStream(diskFilePath, {
         start,
         end,
-        highWaterMark: 1024 * 1024
+        highWaterMark: 4 * 1024 * 1024
       });
     } else {
       // PATH B: Live swarm stream — prioritize the exact pieces requested!
@@ -269,6 +275,11 @@ export function handleFileStream(req, res, torrent, fileIdentifier, isDownload =
  * Handles HTTP 206 Partial Content streaming for disk video and audio
  */
 export function handleMediaStream(req, res, filePath) {
+  if (req.socket) {
+    req.socket.setNoDelay(true);
+    req.socket.setKeepAlive(true, 30000);
+  }
+
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: 'File not found on disk' });
   }
@@ -299,7 +310,7 @@ export function handleMediaStream(req, res, filePath) {
     }
 
     const chunkSize = (end - start) + 1;
-    const fileStream = fs.createReadStream(filePath, { start, end, highWaterMark: 1024 * 1024 });
+    const fileStream = fs.createReadStream(filePath, { start, end, highWaterMark: 4 * 1024 * 1024 });
 
     res.writeHead(206, {
       'Content-Range': `bytes ${start}-${end}/${fileSize}`,

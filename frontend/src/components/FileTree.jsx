@@ -4,6 +4,7 @@ import {
   Download, Play, Copy, FolderArchive, Search 
 } from 'lucide-react';
 import { formatBytes, isMediaFile, isArchiveFile, isSubtitleFile } from '../utils/format.js';
+import { apiUrl } from '../utils/api.js';
 
 export default function FileTree({ torrent, files, onStreamFile, onExtractSingle, onShowToast }) {
   const [filterType, setFilterType] = useState('all'); // 'all' | 'video' | 'archive' | 'subtitle'
@@ -127,10 +128,10 @@ export default function FileTree({ torrent, files, onStreamFile, onExtractSingle
         {filteredFiles.map((file, idx) => {
           const filePath = file.path || file.name;
           const fileIdx = file.index !== undefined ? file.index : idx;
-          const streamUrl = `/api/stream/${torrent.infoHash}/${fileIdx}?file=${encodeURIComponent(filePath)}`;
-          const downloadUrl = `/api/download/${torrent.infoHash}/${fileIdx}?file=${encodeURIComponent(filePath)}`;
-          const playlistUrl = `/api/stream-playlist/${torrent.infoHash}?file=${encodeURIComponent(filePath)}`;
-          const fullDownloadUrl = `${window.location.origin}${downloadUrl}`;
+          const streamUrl = apiUrl(`/api/stream/${torrent.infoHash}/${fileIdx}?file=${encodeURIComponent(filePath)}`);
+          const downloadUrl = apiUrl(`/api/download/${torrent.infoHash}/${fileIdx}?file=${encodeURIComponent(filePath)}`);
+          const playlistUrl = apiUrl(`/api/stream-playlist/${torrent.infoHash}?file=${encodeURIComponent(filePath)}`);
+          const fullDownloadUrl = downloadUrl.startsWith('http') ? downloadUrl : `${window.location.origin}${downloadUrl}`;
           const isStreamable = isMediaFile(file.name || filePath);
           const isArchive = isArchiveFile(file.name || filePath);
 

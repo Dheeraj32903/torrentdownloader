@@ -9,6 +9,7 @@ import {
   formatBytes, formatSpeed, formatDuration, 
   extractMediaTags, parseMovieTitle, isMediaFile 
 } from '../utils/format.js';
+import { apiUrl } from '../utils/api.js';
 
 export default function TorrentCard({ 
   torrent, 
@@ -30,7 +31,7 @@ export default function TorrentCard({
   // Toggle Pause/Resume
   const handleTogglePause = async () => {
     try {
-      const endpoint = isPaused ? `/api/torrents/${torrent.infoHash}/resume` : `/api/torrents/${torrent.infoHash}/pause`;
+      const endpoint = apiUrl(isPaused ? `/api/torrents/${torrent.infoHash}/resume` : `/api/torrents/${torrent.infoHash}/pause`);
       const res = await fetch(endpoint, { method: 'POST' });
       const data = await res.json();
       onShowToast(data.message || (isPaused ? 'Resumed transfer' : 'Paused transfer'), 'info');
@@ -43,7 +44,7 @@ export default function TorrentCard({
   useEffect(() => {
     if (expanded && (!files || files.length === 0)) {
       setLoadingFiles(true);
-      fetch(`/api/torrents/${torrent.infoHash}/files`)
+      fetch(apiUrl(`/api/torrents/${torrent.infoHash}/files`))
         .then(res => res.json())
         .then(data => {
           if (data.files) setFiles(data.files);
@@ -79,11 +80,13 @@ export default function TorrentCard({
   const primaryFileName = primaryVideo ? (primaryVideo.path || primaryVideo.name) : torrent.name;
   
   // Direct endpoints (Index-based with query param fallback)
-  const directDownloadUrl = `/api/download/${torrent.infoHash}/${primaryVideoIndex}?file=${encodeURIComponent(primaryFileName)}`;
-  const playlistUrl = `/api/stream-playlist/${torrent.infoHash}?file=${encodeURIComponent(primaryFileName)}`;
+  const directDownloadUrl = apiUrl(`/api/download/${torrent.infoHash}/${primaryVideoIndex}?file=${encodeURIComponent(primaryFileName)}`);
+  const playlistUrl = apiUrl(`/api/stream-playlist/${torrent.infoHash}?file=${encodeURIComponent(primaryFileName)}`);
 
   const copyDirectLink = () => {
-    const fullUrl = `${window.location.origin}${directDownloadUrl}`;
+    const fullUrl = directDownloadUrl.startsWith('http')
+      ? directDownloadUrl
+      : `${window.location.origin}${directDownloadUrl}`;
     navigator.clipboard.writeText(fullUrl);
     onShowToast(`Copied Direct Download URL (IDM / 1DM / curl ready)`, 'success');
   };
@@ -93,7 +96,7 @@ export default function TorrentCard({
     if (boosting) return;
     setBoosting(true);
     try {
-      const res = await fetch(`/api/torrents/${torrent.infoHash}/boost`, { method: 'POST' });
+      const res = await fetch(apiUrl(`/api/torrents/${torrent.infoHash}/boost`), { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         onShowToast(`Swarm Boosted! Re-announced to 70+ trackers (${data.numPeers || 0} peers)`, 'success');

@@ -12,6 +12,7 @@ import StreamModal from './components/StreamModal.jsx';
 import StorageModal from './components/StorageModal.jsx';
 import ToastContainer from './components/ToastContainer.jsx';
 import { isMediaFile } from './utils/format.js';
+import { apiUrl, WS_BASE } from './utils/api.js';
 
 // Smooth torrent list merger preserving local file trees & state
 function mergeTorrents(incoming, prevList) {
@@ -67,9 +68,7 @@ export default function App() {
     let reconnectTimeout = null;
 
     const connectWs = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
-      
+      const wsUrl = WS_BASE;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
@@ -128,13 +127,13 @@ export default function App() {
     if (connected) return; // Completely disabled while WS is active!
 
     const pollInterval = setInterval(() => {
-      fetch('/api/torrents')
+      fetch(apiUrl('/api/torrents'))
         .then(res => res.json())
         .then(data => { 
           if (Array.isArray(data)) setTorrents(prev => mergeTorrents(data, prev)); 
         })
         .catch(() => {});
-      fetch('/api/system/stats')
+      fetch(apiUrl('/api/system/stats'))
         .then(res => res.json())
         .then(data => { if (data.disk) setDiskStats(data.disk); })
         .catch(() => {});
@@ -147,7 +146,7 @@ export default function App() {
   const handleAddMagnet = async (magnet) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/torrents/add-magnet', {
+      const res = await fetch(apiUrl('/api/torrents/add-magnet'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ magnet })
@@ -170,7 +169,7 @@ export default function App() {
     formData.append('torrent', file);
 
     try {
-      const res = await fetch('/api/torrents/upload-torrent', {
+      const res = await fetch(apiUrl('/api/torrents/upload-torrent'), {
         method: 'POST',
         body: formData
       });
@@ -192,7 +191,7 @@ export default function App() {
     );
 
     try {
-      const res = await fetch(`/api/torrents/${hash}?deleteFiles=${deleteFiles ? 'true' : 'false'}`, {
+      const res = await fetch(apiUrl(`/api/torrents/${hash}?deleteFiles=${deleteFiles ? 'true' : 'false'}`), {
         method: 'DELETE'
       });
       const data = await res.json();
@@ -200,7 +199,7 @@ export default function App() {
 
       setTorrents(prev => prev.filter(t => t.infoHash !== hash));
       showToast(`Torrent removed successfully`, 'info');
-      fetch('/api/system/stats').then(r => r.json()).then(d => { if (d.disk) setDiskStats(d.disk); });
+      fetch(apiUrl('/api/system/stats')).then(r => r.json()).then(d => { if (d.disk) setDiskStats(d.disk); });
     } catch (err) {
       showToast(err.message || 'Failed to delete torrent', 'error');
     }
@@ -209,13 +208,13 @@ export default function App() {
   // Handle Purge All Storage & Downloads
   const handlePurgeAll = async () => {
     try {
-      const res = await fetch('/api/storage/purge-all', { method: 'POST' });
+      const res = await fetch(apiUrl('/api/storage/purge-all'), { method: 'POST' });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
       setTorrents([]);
       showToast('All downloaded files and cache have been purged! Your SSD is free.', 'success');
-      fetch('/api/system/stats').then(r => r.json()).then(d => { if (d.disk) setDiskStats(d.disk); });
+      fetch(apiUrl('/api/system/stats')).then(r => r.json()).then(d => { if (d.disk) setDiskStats(d.disk); });
     } catch (err) {
       showToast(err.message || 'Failed to purge storage', 'error');
     }
@@ -225,7 +224,7 @@ export default function App() {
   const handleExtractArchive = async (hash, relativePath) => {
     try {
       showToast('Starting background archive extraction...', 'info');
-      const res = await fetch('/api/extract-file', {
+      const res = await fetch(apiUrl('/api/extract-file'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hash, relativePath })

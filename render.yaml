@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: magnetx
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    disk:
+      name: magnetx-downloads
+      mountPath: /app/downloads
+      sizeGB: 10
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
+      - key: MAX_STORAGE_GB
+        value: 9
+      - key: MAX_CONNS
+        value: 150
+      - key: CORS_ORIGIN
+        value: "*"
+      # Optional: Uncomment to password protect your instance
+      # - key: MAGNETX_PASSWORD
+      #   generateValue: true

@@ -357,3 +357,36 @@ export function resolveFilePath(downloadDir, meta, relPath) {
 
   return sanitizePath(downloadDir, cleanRel);
 }
+
+/**
+ * Automatically cleans up oldest completed torrents when storage exceeds MAX_STORAGE_GB (LRU eviction)
+ */
+export async function enforceStorageQuota(downloadDir, torrentManager) {
+  const MAX_STORAGE_GB = Number(process.env.MAX_STORAGE_GB) || 15;
+  const maxBytes = MAX_STORAGE_GB * 1024 * 1024 * 1024;
+
+  try {
+    const stats = getDiskStats(downloadDir);
+    let usedBytes = stats.usedInDownloads || 0;
+
+    if (usedBytes <= maxBytes) return;
+
+    console.log(`[Storage] Used storage (${formatBytes(usedBytes)}) exceeds quota (${MAX_STORAGE_GB} GB). Enforcing LRU cleanup...`);
+
+    if (!torrentManager || !torrentManager.torrentsMap) return;
+
+    const completed = Array.from(torrentManager.torrentsMap.values())
+      .filter(t => t.status === 'completed' || t.status === 'ready' || t.progress >= 1)
+      .sort((a, b) => new Date(a.dateAdded || 0) - new Date(b.dateAdded || 0));
+
+    for (const t of completed) {
+      if (usedBytes <= maxBytes) break;
+      console.log(`[Storage] Evicting oldest completed torrent: ${t.name} (${t.infoHash})`);
+      await torrentManager.deleteTorrent(t.infoHash, true);
+      const updated = getDiskStats(downloadDir);
+      usedBytes = updated.usedInDownloads || 0;
+    }
+  } catch (err) {
+    console.warn('[Storage] Quota enforcement error:', err.message);
+  }
+}

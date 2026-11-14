@@ -3,6 +3,7 @@ import {
   X, Play, Download, Copy, Check, Tv, ExternalLink, 
   Maximize, PictureInPicture2, RotateCcw, RotateCw 
 } from 'lucide-react';
+import { apiUrl } from '../utils/api.js';
 
 export default function StreamModal({ isOpen, onClose, torrent, file, onShowToast }) {
   const [copied, setCopied] = useState(false);
@@ -41,7 +42,7 @@ export default function StreamModal({ isOpen, onClose, torrent, file, onShowToas
   // Discover subtitles if available
   useEffect(() => {
     if (isOpen && torrent?.infoHash) {
-      fetch(`/api/video-subtitles/${torrent.infoHash}`)
+      fetch(apiUrl(`/api/video-subtitles/${torrent.infoHash}`))
         .then(res => res.json())
         .then(data => {
           if (data?.subtitles && Array.isArray(data.subtitles)) {
@@ -58,9 +59,10 @@ export default function StreamModal({ isOpen, onClose, torrent, file, onShowToas
   const relPath = targetFile.path || targetFile.name;
   const fileIndex = targetFile.index !== undefined ? targetFile.index : 0;
   
-  const streamUrl = `${window.location.origin}/api/stream/${torrent.infoHash}/${fileIndex}?file=${encodeURIComponent(relPath)}`;
-  const playlistUrl = `/api/stream-playlist/${torrent.infoHash}?file=${encodeURIComponent(relPath)}`;
-  const downloadUrl = `/api/download/${torrent.infoHash}/${fileIndex}?file=${encodeURIComponent(relPath)}`;
+  const rawStreamUrl = apiUrl(`/api/stream/${torrent.infoHash}/${fileIndex}?file=${encodeURIComponent(relPath)}`);
+  const streamUrl = rawStreamUrl.startsWith('http') ? rawStreamUrl : `${window.location.origin}${rawStreamUrl}`;
+  const playlistUrl = apiUrl(`/api/stream-playlist/${torrent.infoHash}?file=${encodeURIComponent(relPath)}`);
+  const downloadUrl = apiUrl(`/api/download/${torrent.infoHash}/${fileIndex}?file=${encodeURIComponent(relPath)}`);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(streamUrl);

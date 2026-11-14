@@ -58,8 +58,20 @@ if (MAGNETX_PASSWORD) {
   });
 }
 
-// Middleware
-app.use(cors());
+// Healthcheck for Cloud Platforms (Render, Railway, Kubernetes, Docker)
+app.get('/healthz', (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime(), timestamp: Date.now() });
+});
+
+// Middleware with Production Cloud CORS & Streaming Headers
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+app.use(cors({
+  origin: CORS_ORIGIN === '*' ? true : CORS_ORIGIN.split(',').map(s => s.trim()),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Range', 'X-MagnetX-Password'],
+  exposedHeaders: ['Content-Range', 'Accept-Ranges', 'Content-Length', 'Content-Disposition']
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.resolve('./public')));
