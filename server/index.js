@@ -77,7 +77,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.resolve('./public')));
 
 // Downloads directory
-const DOWNLOADS_DIR = path.resolve('./downloads');
+const DOWNLOADS_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DOWNLOAD_DIR || path.resolve('./downloads');
 if (!fs.existsSync(DOWNLOADS_DIR)) {
   fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
 }
@@ -605,10 +605,10 @@ app.use((req, res) => {
 });
 
 // Start server
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`=======================================================`);
-  console.log(`🚀 MagnetX Direct Extractor is LIVE!`);
-  console.log(`🌐 Web UI: http://localhost:${PORT}`);
+  console.log(`🚀 MagnetX running on 0.0.0.0:${PORT}`);
+  console.log(`🌐 Web UI: http://0.0.0.0:${PORT}`);
   console.log(`📁 Workspace: ${DOWNLOADS_DIR}`);
   console.log(`=======================================================`);
 });

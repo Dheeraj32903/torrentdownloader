@@ -8,7 +8,7 @@ import { prioritizeStreamPieces } from './streamHandler.js';
 
 export class TorrentManager {
   constructor(options = {}) {
-    this.downloadDir = options.downloadDir || path.resolve('./downloads');
+    this.downloadDir = options.downloadDir || process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DOWNLOAD_DIR || path.resolve('./downloads');
     this.stateDir = path.resolve('./data');
     this.stateFile = path.join(this.stateDir, 'torrents-state.json');
     this.client = null;

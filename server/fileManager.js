@@ -362,7 +362,7 @@ export function resolveFilePath(downloadDir, meta, relPath) {
  * Automatically cleans up oldest completed torrents when storage exceeds MAX_STORAGE_GB (LRU eviction)
  */
 export async function enforceStorageQuota(downloadDir, torrentManager) {
-  const MAX_STORAGE_GB = Number(process.env.MAX_STORAGE_GB) || 15;
+  const MAX_STORAGE_GB = Number(process.env.MAX_STORAGE_GB) || 8;
   const maxBytes = MAX_STORAGE_GB * 1024 * 1024 * 1024;
 
   try {

@@ -1,12 +1,11 @@
 # ==========================================
-# Stage 1: Build Modern React Frontend
+# Stage 1: Build Frontend (React + Vite)
 # ==========================================
-FROM node:22-alpine AS builder
+FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app
 
-# Copy root & frontend package files
-COPY package*.json ./
+# Copy frontend manifest files
 COPY frontend/package*.json ./frontend/
 
 # Install frontend dependencies
@@ -19,43 +18,47 @@ RUN npm --prefix frontend run build
 # ==========================================
 # Stage 2: Production Cloud Server
 # ==========================================
-FROM node:22-alpine
+FROM node:20-bookworm-slim AS runner
 
 # Install native archive extraction binaries & multimedia decoders
-RUN apk add --no-cache 7zip ffmpeg libarchive-tools unrar wget
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    p7zip-full \
+    ffmpeg \
+    wget \
+    curl \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install server production dependencies only
+# Copy root manifest and install server production dependencies only
 COPY package*.json ./
 RUN npm install --omit=dev
 
-# Copy server application files
+# Copy server code
 COPY server/ ./server/
 
-# Copy compiled production UI assets from builder stage
-COPY --from=builder /app/public ./public
+# Copy compiled production UI assets from frontend-builder stage
+COPY --from=frontend-builder /app/public ./public
 
-# Set default cloud production environment
+# Set production environment defaults
 ENV NODE_ENV=production \
     PORT=3000 \
     TORRENT_PORT=51413 \
     DHT_PORT=6881 \
     MAX_CONNS=150 \
-    MAX_STORAGE_GB=15
+    MAX_STORAGE_GB=8
 
 # Persistent volumes for downloads and metadata state
 VOLUME ["/app/downloads", "/app/data"]
 
-# Expose HTTP web server & BitTorrent P2P / DHT swarm ports
+# Expose HTTP web server & BitTorrent P2P swarm ports
 EXPOSE 3000
-EXPOSE 51413/tcp
+EXPOSE 51413
 EXPOSE 51413/udp
-EXPOSE 6881/udp
 
-# Cloud container healthcheck (keeps Render / Railway instance alive)
+# Healthcheck for Railway, Render, and Docker
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/healthz || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/healthz || exit 1
 
-# Start server with V8 420MB heap ceiling (optimizes RAM for 512MB free tier containers)
+# Start server with V8 420MB heap ceiling (prevents OOM on constrained cloud instances)
 CMD ["node", "--max-old-space-size=420", "server/index.js"]
