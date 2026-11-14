@@ -279,7 +279,7 @@ export default function TorrentCard({
             {!isCompleted && torrent.timeRemaining ? (
               <span className="flex items-center gap-1 text-slate-500">
                 <Clock className="w-3 h-3 text-slate-400" />
-                <span>ETA: {formatDuration(torrent.timeRemaining)}</span>
+                <span>ETA: {torrent.timeRemainingFormatted || formatDuration(torrent.timeRemaining)}</span>
               </span>
             ) : null}
 

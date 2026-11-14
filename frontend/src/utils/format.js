@@ -14,15 +14,20 @@ export function formatSpeed(bytesPerSec) {
   return `${formatBytes(bytesPerSec)}/s`;
 }
 
-export function formatDuration(seconds) {
-  if (!seconds || seconds <= 0 || !isFinite(seconds)) return 'Done';
+export function formatDuration(val) {
+  if (!val || val <= 0 || !isFinite(val)) return 'Calculating...';
+  // WebTorrent returns timeRemaining in milliseconds. Normalize to seconds.
+  const seconds = val > 100000 ? Math.floor(val / 1000) : Math.floor(val);
   if (seconds < 60) return `${Math.ceil(seconds)}s`;
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   if (mins < 60) return `${mins}m ${secs}s`;
   const hours = Math.floor(mins / 60);
   const remMins = mins % 60;
-  return `${hours}h ${remMins}m`;
+  if (hours < 24) return `${hours}h ${remMins}m`;
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  return `${days}d ${remHours}h`;
 }
 
 export function isMediaFile(filename) {
