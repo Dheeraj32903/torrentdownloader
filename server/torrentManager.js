@@ -27,9 +27,22 @@ export class TorrentManager {
   }
 
   initClient() {
+    const bootstrapNodes = [
+      'router.bittorrent.com:6881',
+      'dht.transmissionbt.com:6881',
+      'router.utorrent.com:6881',
+      'dht.aelitis.com:6881',
+      'dht.libtorrent.org:25401',
+      '67.215.246.10:6881',
+      '87.98.162.88:6881',
+      '82.221.103.244:6881'
+    ];
+
     this.client = new WebTorrent({
-      maxConns: 200, // Connect up to 200 peers simultaneously
-      dht: true,
+      maxConns: 250, // Connect up to 250 peers simultaneously across swarm
+      dht: {
+        bootstrap: bootstrapNodes
+      },
       lsd: true,
       webSeeds: true,
       utp: true,
@@ -240,6 +253,13 @@ export class TorrentManager {
       let torrent;
       try {
         torrent = this.client.add(torrentId, options);
+        // Immediate Swarm Acceleration: Instant DHT lookup and Tracker Announce
+        if (infoHash && this.client.dht) {
+          try { this.client.dht.lookup(infoHash); } catch {}
+        }
+        if (torrent.discovery && torrent.discovery.tracker) {
+          try { torrent.discovery.tracker.announce(); } catch {}
+        }
       } catch (err) {
         if (err.message && err.message.includes('Cannot add duplicate torrent')) {
           const active = this.getActiveTorrent(infoHash);
@@ -348,18 +368,23 @@ export class TorrentManager {
       }
     });
 
-    // Aggressive peer discovery re-announcement every 45s when peers are low
+    // Aggressive fast peer discovery: re-announce every 10s for the first 2 minutes if peers are low
+    let elapsed = 0;
     const reannounceInterval = setInterval(() => {
       if (torrent.destroyed) {
         clearInterval(reannounceInterval);
         return;
       }
-      if (torrent.numPeers < 30 && torrent.discovery && torrent.discovery.tracker) {
-        try {
-          torrent.discovery.tracker.announce();
-        } catch {}
+      elapsed += 10;
+      if (torrent.numPeers < 35 && torrent.discovery) {
+        if (torrent.discovery.tracker) {
+          try { torrent.discovery.tracker.announce(); } catch {}
+        }
+        if (torrent.discovery.dht && torrent.infoHash) {
+          try { torrent.discovery.dht.lookup(torrent.infoHash); } catch {}
+        }
       }
-    }, 45000);
+    }, 10000);
 
     torrent.on('download', () => {
       const key = torrent.infoHash || tempHash;

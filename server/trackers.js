@@ -54,38 +54,39 @@ let lastFetchedTime = 0;
 export async function updateTrackersList() {
   const now = Date.now();
   // Refresh cache every 6 hours
-  if (now - lastFetchedTime < 6 * 60 * 60 * 1000 && cachedTrackers.length > DEFAULT_TRACKERS.length) {
+  if (now - lastFetchedTime < 6 * 60 * 60 * 1000 && cachedTrackers.length > 80) {
     return cachedTrackers;
   }
 
   const trackerUrls = [
-    'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_best.txt',
     'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_all.txt',
+    'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_all_http.txt',
+    'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_best.txt',
     'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_all_ip.txt',
     'https://cdn.jsdelivr.net/gh/ngosang/trackerslist@master/trackers_all.txt'
   ];
 
-  for (const url of trackerUrls) {
-    try {
-      const text = await fetchText(url);
-      if (text && text.trim().length > 0) {
-        const lines = text
-          .split('\n')
-          .map(l => l.trim())
-          .filter(l => l.startsWith('udp://') || l.startsWith('http://') || l.startsWith('https://') || l.startsWith('wss://'));
+  const fetchedLists = await Promise.all(
+    trackerUrls.map(url => fetchText(url).catch(() => ''))
+  );
 
-        if (lines.length > 5) {
-          // Merge unique trackers
-          const set = new Set([...DEFAULT_TRACKERS, ...lines]);
-          cachedTrackers = Array.from(set);
-          lastFetchedTime = now;
-          console.log(`[Trackers] Loaded ${cachedTrackers.length} active BitTorrent trackers (UDP + HTTPS + WSS).`);
-          return cachedTrackers;
-        }
+  const set = new Set(DEFAULT_TRACKERS);
+  for (const text of fetchedLists) {
+    if (text && text.trim().length > 0) {
+      const lines = text
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.startsWith('udp://') || l.startsWith('http://') || l.startsWith('https://') || l.startsWith('wss://'));
+      for (const line of lines) {
+        set.add(line);
       }
-    } catch {
-      // Try next mirror
     }
+  }
+
+  if (set.size > DEFAULT_TRACKERS.length) {
+    cachedTrackers = Array.from(set);
+    lastFetchedTime = now;
+    console.log(`[Trackers] Aggregated ${cachedTrackers.length} active global BitTorrent trackers.`);
   }
 
   return cachedTrackers;

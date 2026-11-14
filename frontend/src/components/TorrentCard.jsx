@@ -111,6 +111,19 @@ export default function TorrentCard({
   const movieMeta = parseMovieTitle(torrent.name);
   const mediaTags = extractMediaTags(torrent.name);
 
+  const handleDownloadClick = (e) => {
+    if (!isCompleted && (torrent.numPeers === 0 || !files || files.length === 0)) {
+      onShowToast('Connecting to peer swarm. Download will begin streaming once peers connect.', 'info');
+    }
+  };
+
+  const handlePlayClick = () => {
+    if (!isCompleted && (torrent.numPeers === 0 || !files || files.length === 0)) {
+      onShowToast('Connecting to peer swarm. Video will start buffering once initial pieces arrive.', 'info');
+    }
+    onOpenStream(torrent, primaryVideo);
+  };
+
   return (
     <div className="bg-white border border-slate-200/90 hover:border-slate-300 rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-all duration-200">
       {/* Top Header Row */}
@@ -285,7 +298,7 @@ export default function TorrentCard({
           {/* Action 1: Play Movie (Primary Royal Blue Button) */}
           <button
             type="button"
-            onClick={() => onOpenStream(torrent, primaryVideo)}
+            onClick={handlePlayClick}
             className="btn-primary text-xs py-2 px-4 shadow-sm shadow-blue-500/20"
             title="Instant HTTP 206 Cinema playback in browser or external player"
           >
@@ -297,6 +310,7 @@ export default function TorrentCard({
           <a
             href={directDownloadUrl}
             download={primaryFileName}
+            onClick={handleDownloadClick}
             className="btn-secondary text-xs py-2 px-3.5"
             title="Direct native download at raw gigabit disk / swarm speed (IDM ready)"
           >

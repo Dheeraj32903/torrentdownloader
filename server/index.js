@@ -398,12 +398,12 @@ async function resolveAndStream(req, res, isDownload) {
     return res.status(404).json({ error: 'Torrent not found' });
   }
 
-  // If active torrent is still discovering peers & resolving metadata, wait up to 10s
+  // If active torrent is still discovering peers & resolving metadata, wait up to 20s
   if (activeTorrent && (!activeTorrent.files || activeTorrent.files.length === 0)) {
     console.log(`[Stream] Waiting for swarm metadata for ${meta?.name || hash}...`);
     await new Promise((resolve) => {
       const onMeta = () => { cleanup(); resolve(true); };
-      const timer = setTimeout(() => { cleanup(); resolve(false); }, 10000);
+      const timer = setTimeout(() => { cleanup(); resolve(false); }, 20000);
       const cleanup = () => {
         clearTimeout(timer);
         activeTorrent.off('metadata', onMeta);
@@ -412,9 +412,23 @@ async function resolveAndStream(req, res, isDownload) {
     });
   }
 
+  // Check if file is already completed on disk
+  const torrentDir = path.join(DOWNLOADS_DIR, meta?.name || hash);
+  const requestedFile = fileIdentifier !== undefined ? String(fileIdentifier) : '';
+  const diskPath = resolveFilePath(DOWNLOADS_DIR, meta, requestedFile);
+  const existsOnDisk = diskPath && fs.existsSync(diskPath);
+
+  // If not on disk AND activeTorrent metadata is still unresolved, return clean 503 instead of crashing with ENOENT
+  if (!existsOnDisk && (!activeTorrent || !activeTorrent.files || activeTorrent.files.length === 0)) {
+    return res.status(503).json({
+      error: 'Connecting to peer swarm and resolving metadata. Please wait a few seconds for peers to connect and retry.',
+      code: 'SWARM_METADATA_PENDING'
+    });
+  }
+
   // Build unified torrent object
   let torrentObj = activeTorrent;
-  // If activeTorrent has no files yet, but meta has files, fallback to meta.files!
+  // If activeTorrent has no files yet, but file exists on disk from meta, serve from disk!
   if ((!torrentObj || !torrentObj.files || torrentObj.files.length === 0) && meta && meta.files && meta.files.length > 0) {
     const isDone = meta.status === 'completed' || meta.status === 'ready' || (meta.progress >= 1);
     torrentObj = {
@@ -437,7 +451,7 @@ async function resolveAndStream(req, res, isDownload) {
           if (activeTorrent && activeTorrent.files && activeTorrent.files[i]) {
             return activeTorrent.files[i].createReadStream(opts);
           }
-          return fs.createReadStream(filePath, opts);
+          throw new Error('File not available on disk or in active swarm');
         }
       }))
     };

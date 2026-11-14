@@ -140,14 +140,6 @@ export function handleFileStream(req, res, torrent, fileIdentifier, isDownload =
   const safeAsciiName = file.name.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '');
   const dispositionType = isDownload ? 'attachment' : 'inline';
 
-  res.setHeader('Accept-Ranges', 'bytes');
-  res.setHeader('Content-Type', contentType);
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader(
-    'Content-Disposition',
-    `${dispositionType}; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(file.name)}`
-  );
-
   // Parse Range header for HTTP 206 Partial Content (Used by video players & IDM)
   const range = req.headers.range;
   let start = 0;
@@ -162,17 +154,25 @@ export function handleFileStream(req, res, torrent, fileIdentifier, isDownload =
       res.setHeader('Content-Range', `bytes */${totalSize}`);
       return res.status(416).end();
     }
-
-    res.status(206);
-    res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
-    res.setHeader('Content-Length', end - start + 1);
-  } else {
-    res.status(200);
-    res.setHeader('Content-Length', totalSize);
   }
 
-  // Crucial for IDM / Browser probes: If HEAD request, end immediately after headers!
+  // Handle HEAD requests immediately without opening stream
   if (req.method === 'HEAD') {
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader(
+      'Content-Disposition',
+      `${dispositionType}; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(file.name)}`
+    );
+    if (range) {
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+      res.setHeader('Content-Length', end - start + 1);
+    } else {
+      res.status(200);
+      res.setHeader('Content-Length', totalSize);
+    }
     return res.end();
   }
 
@@ -181,28 +181,58 @@ export function handleFileStream(req, res, torrent, fileIdentifier, isDownload =
   const isCompleteOnDisk = (torrent.done || (file.progress !== undefined && file.progress >= 1)) && fs.existsSync(diskFilePath);
 
   let stream;
-  if (isCompleteOnDisk) {
-    // PATH A: Fast native OS disk stream (1MB chunks, zero WebTorrent overhead)
-    stream = fs.createReadStream(diskFilePath, {
-      start,
-      end,
-      highWaterMark: 1024 * 1024
-    });
-  } else {
-    // PATH B: Live swarm stream — prioritize the exact pieces requested!
-    if (torrent.pieceLength) {
-      const absStart = (file.offset || 0) + start;
-      const absEnd = (file.offset || 0) + end;
-      const startPiece = Math.floor(absStart / torrent.pieceLength);
-      const endPiece = Math.floor(absEnd / torrent.pieceLength);
-
-      // Mark next 25 pieces from current playback/download point as critical
-      if (typeof torrent.critical === 'function') {
-        torrent.critical(startPiece, Math.min(endPiece, startPiece + 25));
+  try {
+    if (isCompleteOnDisk) {
+      // PATH A: Fast native OS disk stream (1MB chunks, zero WebTorrent overhead)
+      stream = fs.createReadStream(diskFilePath, {
+        start,
+        end,
+        highWaterMark: 1024 * 1024
+      });
+    } else {
+      // PATH B: Live swarm stream — prioritize the exact pieces requested!
+      if (typeof file.createReadStream !== 'function') {
+        return res.status(503).json({ error: 'File stream is not ready yet. Please wait for swarm peers to connect.' });
       }
+      if (torrent.pieceLength) {
+        const absStart = (file.offset || 0) + start;
+        const absEnd = (file.offset || 0) + end;
+        const startPiece = Math.floor(absStart / torrent.pieceLength);
+        const endPiece = Math.floor(absEnd / torrent.pieceLength);
+
+        // Mark next 25 pieces from current playback/download point as critical
+        if (typeof torrent.critical === 'function') {
+          torrent.critical(startPiece, Math.min(endPiece, startPiece + 25));
+        }
+      }
+      file.select();
+      stream = file.createReadStream({ start, end });
     }
-    file.select();
-    stream = file.createReadStream({ start, end });
+  } catch (err) {
+    console.warn('[Stream] Stream creation error:', err.message);
+    return res.status(503).json({ error: 'File stream is not ready yet: ' + err.message });
+  }
+
+  if (!stream) {
+    return res.status(503).json({ error: 'Unable to initialize stream for file' });
+  }
+
+  // Set response headers only AFTER stream has been created successfully
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader(
+    'Content-Disposition',
+    `${dispositionType}; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(file.name)}`
+  );
+
+  if (range) {
+    res.status(206);
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+    res.setHeader('Content-Length', end - start + 1);
+  } else {
+    res.status(200);
+    res.setHeader('Content-Length', totalSize);
   }
 
   // Prevent memory/descriptor leaks when user seeks or cancels download
